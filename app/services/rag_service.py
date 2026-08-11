@@ -2,10 +2,12 @@ import logging
 
 from pydantic import BaseModel
 
+from app.config.settings import get_settings
 from app.embeddings.base import EmbeddingProvider
 from app.exceptions.vectorstore import VectorStoreError
 from app.vectorstores.base import VectorStore
 from app.vectorstores.models import SearchResult
+
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +30,17 @@ class RagService:
         embedding_provider: EmbeddingProvider,
         vector_store: VectorStore,
     ):
+        settings = get_settings()
+
         self.embedding_provider = embedding_provider
         self.vector_store = vector_store
+
+        self.top_k = settings.RAG_TOP_K
+        self.min_score = settings.RAG_MIN_SCORE
 
     async def retrieve(
         self,
         question: str,
-        limit: int = 5,
     ) -> RagContext:
 
         logger.info(
@@ -50,16 +56,28 @@ class RagService:
 
             documents = await self.vector_store.search(
                 embedding=embedding,
-                limit=limit,
+                limit=self.top_k,
             )
 
             logger.info(
-                "Retrieved %d document(s).",
+                "Retrieved %d document(s) before filtering.",
                 len(documents),
             )
 
+            relevant_documents = [
+                document
+                for document in documents
+                if document.score >= self.min_score
+            ]
+
+            logger.info(
+                "Retained %d document(s) with score >= %.2f.",
+                len(relevant_documents),
+                self.min_score,
+            )
+
             return RagContext(
-                documents=documents,
+                documents=relevant_documents,
             )
 
         except VectorStoreError:

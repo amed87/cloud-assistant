@@ -9,12 +9,15 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
 
     ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "qwen3:8b"
+    ollama_model: str = "gemma:2b"
 
     log_level: str = "INFO"
 
     CHROMA_PATH: str = "./data/chroma"
     CHROMA_COLLECTION: str = "cloud-assistant"
+
+    RAG_TOP_K: int = 5
+    RAG_MIN_SCORE: float = 0.3
     
 
     model_config = SettingsConfigDict(

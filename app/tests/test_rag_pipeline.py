@@ -43,7 +43,7 @@ async def main():
     print("Dokument erfolgreich importiert.")
 
     query = (
-        "Was ist Kubernetes und wofür wird es verwendet?"
+        "Wie wird ein Schokoladenkuchen gebacken?"
     )
 
     query_embedding = await embedding_provider.embed(
