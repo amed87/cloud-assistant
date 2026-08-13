@@ -17,10 +17,28 @@ class RagContext(BaseModel):
 
     @property
     def text(self) -> str:
-        return "\n\n".join(
-            document.content
-            for document in self.documents
-        )
+        chunks = []
+
+        for document in self.documents:
+
+            source = document.metadata.get(
+                "source",
+                "unknown",
+            )
+
+            chunk_index = document.metadata.get(
+                "chunk_index",
+                "unknown",
+            )
+
+            chunks.append(
+                f"[Quelle: {source} | "
+                f"Chunk: {chunk_index} | "
+                f"Relevanz: {document.score:.3f}]\n"
+                f"{document.content}"
+            )
+
+        return "\n\n".join(chunks)
 
 
 class RagService:
