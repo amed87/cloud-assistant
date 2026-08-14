@@ -1,0 +1,38 @@
+debug Telemetry: agents-playground-cli/cliStart {"cleanProperties":{"isExec":"false","argv":"<REDACTED: user-file-path>,<REDACTED: user-file-path>"}}
+
+log Listening on 56150
+log Microsoft 365 Agents Playground is being launched for you to debug the app: http://localhost:56150
+debug started web socket client
+debug started web socket client
+log Waiting for connection of endpoint: http://127.0.0.1:3978/api/messages
+log waiting for 1 resources: http://127.0.0.1:3978/api/messages
+log wait-on(19944) Timed out waiting for: http://127.0.0.1:3978/api/messages; exiting with error
+debug Telemetry: agents-playground-server/error {"cleanProperties":{"stack":"\"Error: Timed out waiting for: http:<REDACTED: user-file-path>:3978/api/messages\\n    at <REDACTED: user-file-path>:2:1497615\\n    at doInnerSub (<REDACTED: user-file-path>:2:2727863)\\n    at outerNext (<REDACTED: user-file-path>:2:2727715)\\n    at OperatorSubscriber._this._next (<REDACTED: user-file-path>:2:2843583)\\n    at Subscriber.next (<REDACTED: user-file-path>:5:1004242)\\n    at AsyncAction.<anonymous> (<REDACTED: user-file-path>:5:1074811)\\n    at AsyncAction._execute (<REDACTED: user-file-path>:2:384044)\\n    at AsyncAction.execute (<REDACTED: user-file-path>:2:383817)\\n    at AsyncScheduler.flush (<REDACTED: user-file-path>:5:243755)\\n    at listOnTimeout (node:internal/timers:635:17)\"","message":"\"Timed out waiting for: http:<REDACTED: user-file-path>:3978/api/messages\""}}
+
+log Events recording disabled.
+debug Telemetry: agents-playground-server/eventsRecording {"cleanProperties":{"enabled":"false"}}
+
+debug Telemetry: agents-playground-server/getConfig {"cleanProperties":{"internalConfig":"{\"locale\":\"de-DE\",\"localTimezone\":\"Europe/Berlin\",\"channelId\":\"msteams\",\"debugConfig\":{\"eventsRecordingEnabled\":false}}"}}
+
+debug Telemetry: agents-playground-server/error {"cleanProperties":{"stack":"\"Error: connect ECONNREFUSED 127.0.0.1:3978\\n    at exports.UserBotError (<REDACTED: user-file-path>:2:1255267)\\n    at InstallationUserBotAccessor.handleAxiosError (<REDACTED: user-file-path>:2:2235528)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\\n    at async InstallationUserBotAccessor.sendActivity (<REDACTED: user-file-path>:2:2234790)\\n    at async InstallationUserBotAccessor.sendInstallationUpdateActivity (<REDACTED: user-file-path>:2:2179824)\"","message":"\"connect ECONNREFUSED 127.0.0.1:3978\"","code":"\"UserBotError\""}}
+
+log InternalServiceError: connect ECONNREFUSED 127.0.0.1:3978
+    at exports.UserBotError (C:\Users\j.geiser\node\node-v24.19.0-win-x64\node_modules\@microsoft\m365agentsplayground\dist\index.js:2:1255267)
+    at InstallationUserBotAccessor.handleAxiosError (C:\Users\j.geiser\node\node-v24.19.0-win-x64\node_modules\@microsoft\m365agentsplayground\dist\index.js:2:2235528)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async InstallationUserBotAccessor.sendActivity (C:\Users\j.geiser\node\node-v24.19.0-win-x64\node_modules\@microsoft\m365agentsplayground\dist\index.js:2:2234790)
+    at async InstallationUserBotAccessor.sendInstallationUpdateActivity (C:\Users\j.geiser\node\node-v24.19.0-win-x64\node_modules\@microsoft\m365agentsplayground\dist\index.js:2:2179824) {
+  code: 'UserBotError',
+  innerHttpError: undefined
+}
+debug Telemetry: agents-playground-server/error {"cleanProperties":{"stack":"\"Error: connect ECONNREFUSED 127.0.0.1:3978\\n    at exports.UserBotError (<REDACTED: user-file-path>:2:1255267)\\n    at ConversationUpdateUserBotAccessor.handleAxiosError (<REDACTED: user-file-path>:2:2235528)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\\n    at async ConversationUpdateUserBotAccessor.sendActivity (<REDACTED: user-file-path>:2:2234790)\\n    at async ConversationUpdateUserBotAccessor.sendInstallationMemberAddedActivity (<REDACTED: user-file-path>:5:331700)\"","message":"\"connect ECONNREFUSED 127.0.0.1:3978\"","code":"\"UserBotError\""}}
+
+log InternalServiceError: connect ECONNREFUSED 127.0.0.1:3978
+    at exports.UserBotError (C:\Users\j.geiser\node\node-v24.19.0-win-x64\node_modules\@microsoft\m365agentsplayground\dist\index.js:2:1255267)
+    at ConversationUpdateUserBotAccessor.handleAxiosError (C:\Users\j.geiser\node\node-v24.19.0-win-x64\node_modules\@microsoft\m365agentsplayground\dist\index.js:2:2235528)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async ConversationUpdateUserBotAccessor.sendActivity (C:\Users\j.geiser\node\node-v24.19.0-win-x64\node_modules\@microsoft\m365agentsplayground\dist\index.js:2:2234790)
+    at async ConversationUpdateUserBotAccessor.sendInstallationMemberAddedActivity (C:\Users\j.geiser\node\node-v24.19.0-win-x64\node_modules\@microsoft\m365agentsplayground\dist\index.js:5:331700) {
+  code: 'UserBotError',
+  innerHttpError: undefined
+}
