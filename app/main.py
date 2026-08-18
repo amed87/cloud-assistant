@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from fastapi import Request
 from app.middleware.logging import logging_middleware
+from app.middleware.profiler import profiler_middleware
 
 from app.api.chat import router as chat_router
 from app.config.settings import get_settings
@@ -18,6 +19,7 @@ app = FastAPI(
 )
 
 app.middleware("http")(logging_middleware)
+app.middleware("http")(profiler_middleware)
 
 register_exception_handlers(app)
 

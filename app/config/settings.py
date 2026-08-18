@@ -18,6 +18,10 @@ class Settings(BaseSettings):
 
     RAG_TOP_K: int = 5
     RAG_MIN_SCORE: float = 0.3
+
+    enable_profiler: bool = True
+    profiler_sample_rate: float = 0.1
+    profiler_output_path: str = "./load-profiler.html"
     
 
     model_config = SettingsConfigDict(
