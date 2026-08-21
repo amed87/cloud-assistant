@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "gemma:2b"
+    ollama_num_threads: str = "4"
 
     log_level: str = "INFO"
 
@@ -19,9 +20,10 @@ class Settings(BaseSettings):
     RAG_TOP_K: int = 5
     RAG_MIN_SCORE: float = 0.3
 
-    enable_profiler: bool = True
-    profiler_sample_rate: float = 0.1
-    profiler_output_path: str = "./load-profiler.html"
+    ENABLE_PROFILER: bool = True
+    PROFILER_SAMPLE_RATE: float = 0.1
+    PROFILER_OUTPUT_PATH: str = "./load-profiler.html"
+    PROFILER_OUTPUT_FORMAT: str = "html"
     
 
     model_config = SettingsConfigDict(

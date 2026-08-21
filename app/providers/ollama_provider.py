@@ -27,6 +27,7 @@ class OllamaProvider(LLMProvider):
         self.client = AsyncClient(
             host=settings.ollama_host,
         )
+        self.threads = int(settings.ollama_num_threads)
 
     def _to_ollama_messages(
         self,
@@ -59,6 +60,7 @@ class OllamaProvider(LLMProvider):
             response = await self.client.chat(
                 model=self.model,
                 messages=ollama_messages,
+                options={'num_thread': self.threads}
             )
 
             duration = time.perf_counter() - start
