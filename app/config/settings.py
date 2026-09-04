@@ -11,8 +11,11 @@ class Settings(BaseSettings):
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "gemma:2b"
     ollama_num_threads: str = "4"
+    OLLAMA_NUM_CTX: str = "2048"
 
     log_level: str = "INFO"
+
+    NUMBER_OF_TURNS: int = 5
 
     CHROMA_PATH: str = "./data/chroma"
     CHROMA_COLLECTION: str = "cloud-assistant"

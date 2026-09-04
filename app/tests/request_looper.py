@@ -3,6 +3,8 @@ import httpx
 import os
 import asyncio
 from pathlib import Path
+import psutil
+from app.config.settings import get_settings
 
 PROJECT_ROOT= Path(__file__).resolve().parents[2]
 VENV = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
@@ -29,8 +31,9 @@ def setup_env(num_threads: int, profiler_output_path: str, profiler_output_forma
 async def setup(num_threads: int, profiler_output_path: str, profiler_output_format: str, server: asyncio.subprocess.Process = None) -> asyncio.subprocess.Process:
     if (not server) or (server and not (os.environ["ollama_num_threads"] == num_threads or os.environ["PROFILER_OUTPUT_PATH"] == profiler_output_path or os.environ["PROFILER_OUTPUT_FORMAT"] == profiler_output_format)):
         if server: server.terminate()
+        kill_port()
         setup_env(num_threads, profiler_output_path, profiler_output_format)
-        server = await asyncio.create_subprocess_exec(str(VENV), "-m", "uvicorn", "app.main:app", "--reload")
+        server = await asyncio.create_subprocess_exec(str(VENV), "-m", "uvicorn", "app.main:app")
     return server
 
 async def wait_for_ready(client: httpx.AsyncClient, retries=30, delay=1):
@@ -41,6 +44,12 @@ async def wait_for_ready(client: httpx.AsyncClient, retries=30, delay=1):
         except httpx.ConnectError:
             await asyncio.sleep(delay)
     raise RuntimeError("Server wurde nicht bereit")
+
+def kill_port(port=8000):
+    for conn in psutil.net_connections(kind='inet'):
+        if conn.laddr.port == port and conn.status == 'LISTEN':
+            p = psutil.Process(conn.pid)
+            p.kill()
 
 # Erstelle die Liste der Anfragen für den aktuellen Test
 def build_requests(thread_range: list[int], endpoints: list[str], messages: list[str], conversation_ids: list[int], repeats: int) -> list[dict]:
@@ -62,7 +71,7 @@ def build_requests(thread_range: list[int], endpoints: list[str], messages: list
     return reqs
 
 async def send_requests(url: str, data: dict):
-    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
         response = await client.post(url, json=data)
         return response
 
@@ -83,11 +92,13 @@ async def loop_requests(thread_range: list[int], endpoints: list[str], messages:
             print("Error:", e)
 
     if server: server.terminate()
+    kill_port()
     return reqs
 
 
 async def main():
-    reqs = await loop_requests(range(3,4), [endpoints["chat"]], [message_options["known_simple"]], [0], 1, str(PROJECT_ROOT/"analytics"/"test.html"), "html")
+    # Checke wie die Anzahl Threads Load und Geschwindigkeit beeinflusst
+    reqs = await loop_requests(range(4,5), [endpoints["chat"]], [message_options["known_simple"]], [0], 50, str(PROJECT_ROOT/"analytics"/"num_threads_5.html"), "html")
 
 if __name__=='__main__':
     asyncio.run(main())

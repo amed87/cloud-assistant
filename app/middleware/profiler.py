@@ -11,6 +11,7 @@ import json
 # Dokumentiere die CPU-Last und RAM-Nutzung für eine spezifische Anfrage an den Bot
 async def profiler_middleware(request: Request, call_next: Callable) -> Response:
     settings = get_settings()
+    num_threads = settings.ollama_num_threads
 
     # Profile die Anfrage falls 'profile=true' und der Endpoint /chat ist
     if settings.ENABLE_PROFILER and request.method == 'POST' and str(request.url)[-5:] == "/chat":        
@@ -22,7 +23,7 @@ async def profiler_middleware(request: Request, call_next: Callable) -> Response
         request._body = json.dumps(content).encode()
         response, metrics, duration = await profile(request, call_next, interval=settings.PROFILER_SAMPLE_RATE)
         stats = make_stats_table(metrics)
-        write_profile_to_file(settings.PROFILER_OUTPUT_PATH, 'a', metrics, stats, duration, content)
+        write_profile_to_file(settings.PROFILER_OUTPUT_PATH, 'a', num_threads, metrics, stats, duration, content)
         return response
     
     # Andernfalls lasse es aus
@@ -67,7 +68,7 @@ def poll_metrics(process_inf: dict, metrics: dict, interval: float, stop_monitor
 
     while not stop_monitoring.is_set():
         current_time = time.time() - start_time
-
+        
         cpu = round((process_inf["process"].cpu_percent(interval=None) / process_inf["num_cores"]), 2)
         cpu_total = psutil.cpu_percent(interval=None)
         cpu_ollama = list(round((p.cpu_percent(interval=None) / process_inf["num_cores"]), 2) for p in process_inf["ollama_processes"])
@@ -156,9 +157,10 @@ def find_processes(keywords: list[str])-> list[str]:
     return found_processes
 
 # Schreibe die Resutate in ihre respektiven Dateien
-def write_profile_to_file(path: str, mode: str, metrics: dt, stats: dt, duration: float, content: any):
+def write_profile_to_file(path: str, mode: str, num_threads: str, metrics: dt, stats: dt, duration: float, content: any):
     with open(path, mode) as file:
         file.write(f"<br /><br />Zeit für Anfrage: {duration} Sekunden<br />")
+        file.write(f"Threads: {num_threads}<br />")
         file.write(f"Conversation-ID: {content['conversation_id']}<br />")
         file.write(f"Anfrage: {content['message']}<br />")
         metrics.to_html(file)
@@ -166,8 +168,8 @@ def write_profile_to_file(path: str, mode: str, metrics: dt, stats: dt, duration
 
     # Schreibe die für die Anfrage benötigte Zeit in die korrespondierende CSV-Datei
     perf_csv = path[:-4] + "csv"
-    perf_header = "Zeit fuer Anfrage (s), Conversation-ID, Message\r\n"
-    perf_str = f"{duration}, {content['conversation_id']}, {content['message']} \r\n"
+    perf_header = "Thread-Zahl, Zeit fuer Anfrage (s), Conversation-ID, Message\r\n"
+    perf_str = f"{num_threads}, {duration}, {content['conversation_id']}, {content['message']} \r\n"
     with open(perf_csv, 'a', newline='', encoding='utf-8') as file:
         try:
             if os.path.getsize(perf_csv) == 0:

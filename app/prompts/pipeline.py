@@ -1,6 +1,7 @@
 from app.models.conversation import Conversation
 from app.models.message import ChatMessage
 from app.prompts.steps.base import PromptStep
+from app.services.rag_service import RagContext
 
 
 class PromptPipeline:
@@ -14,6 +15,7 @@ class PromptPipeline:
     async def build(
         self,
         conversation: Conversation,
+        rag_context: RagContext | None = None,
     ) -> list[ChatMessage]:
 
         messages: list[ChatMessage] = []
@@ -23,6 +25,7 @@ class PromptPipeline:
             await step.build(
                 conversation,
                 messages,
+                rag_context,
             )
 
         return messages

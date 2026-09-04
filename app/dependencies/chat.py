@@ -12,8 +12,16 @@ from app.prompts.default import (
     DefaultPromptProvider,
 )
 
-from app.prompts.builder import (
-    PromptBuilder,
+from app.prompts.pipeline import (
+    PromptPipeline,
+)
+
+from app.prompts.steps.system_prompt import (
+    SystemPromptStep,
+)
+
+from app.prompts.steps.conversation import (
+    ConversationStep,
 )
 
 from app.services.chat_service import (
@@ -35,9 +43,10 @@ repository = MemoryConversationRepository()
 
 prompt_provider = DefaultPromptProvider()
 
-prompt_builder = PromptBuilder(
-    prompt_provider,
-)
+prompt_pipeline = PromptPipeline([
+    SystemPromptStep(prompt_provider=prompt_provider),
+    ConversationStep(),
+])
 
 embedding_provider = OllamaEmbeddingProvider()
 
@@ -54,6 +63,6 @@ def get_chat_service() -> ChatService:
     return ChatService(
         provider=provider,
         repository=repository,
-        prompt_builder=prompt_builder,
+        prompt_pipeline=prompt_pipeline,
         rag_service=rag_service,
     )

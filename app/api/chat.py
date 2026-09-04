@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from app.dependencies.chat import get_chat_service
+from app.dependencies.quick_chat import get_quick_chat_service
 from app.models.chat import ChatRequest, ChatResponse
 from app.services.chat_service import ChatService
+from app.services.quick_chat_service import QuickChatService
 
 router = APIRouter()
 
@@ -11,6 +13,18 @@ router = APIRouter()
 async def chat(
     request: ChatRequest,
     service: ChatService = Depends(get_chat_service),
+):
+    answer = await service.ask(
+        conversation_id=request.conversation_id,
+        question=request.message,
+    )
+
+    return ChatResponse(answer=answer)
+
+@router.post("/chat/quick", response_model=ChatResponse)
+async def quick_chat(
+    request: ChatRequest,
+    service: QuickChatService = Depends(get_quick_chat_service),
 ):
     answer = await service.ask(
         conversation_id=request.conversation_id,

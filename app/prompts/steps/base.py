@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 
 from app.models.conversation import Conversation
 from app.models.message import ChatMessage
+from app.services.rag_service import RagContext
+import typing as t
 
 
 class PromptStep(ABC):
@@ -11,6 +13,7 @@ class PromptStep(ABC):
         self,
         conversation: Conversation,
         messages: list[ChatMessage],
+        *_: t.Any,
     ) -> None:
         """Erweitert die Prompt-Nachrichten."""
         pass

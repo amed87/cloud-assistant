@@ -56,6 +56,49 @@ class RagService:
         self.top_k = settings.RAG_TOP_K
         self.min_score = settings.RAG_MIN_SCORE
 
+    async def quick_retrieve(
+            self,
+            question: str,
+    ) -> str:
+        logger.info("Retrieving top document for question: %s", question)
+
+        try:
+            embedding = await self.embedding_provider.embed(
+                question,
+            )
+
+            documents = await self.vector_store.search(
+                embedding=embedding,
+                limit=1,
+            )
+
+            if not documents or documents[0].score < self.min_score:
+                logger.info("No documents found for the question.")
+                return "Keine relevanten Informationen gefunden."
+
+            logger.info(
+                "Top document retrieved with score: %.3f",
+                documents[0].score,
+            )
+
+            return documents[0].content
+
+        except VectorStoreError:
+        
+            logger.exception(
+                "Vector store retrieval failed."
+            )
+
+            raise
+
+        except Exception:
+
+            logger.exception(
+                "Unexpected error while retrieving RAG context."
+            )
+
+            raise
+    
     async def retrieve(
         self,
         question: str,

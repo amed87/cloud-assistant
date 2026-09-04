@@ -4,11 +4,12 @@ from collections.abc import AsyncIterator
 from app.models.conversation import Conversation
 from app.models.message import ChatMessage
 from app.models.role import Role
+from app.config.settings import get_settings
 
 from app.providers.base import LLMProvider
 from app.repositories.base import ConversationRepository
 
-from app.prompts.builder import PromptBuilder
+from app.prompts.pipeline import PromptPipeline
 from app.services.rag_service import RagService
 
 
@@ -21,13 +22,14 @@ class ChatService:
         self,
         provider: LLMProvider,
         repository: ConversationRepository,
-        prompt_builder: PromptBuilder,
+        prompt_pipeline: PromptPipeline,
         rag_service: RagService,
     ):
         self.provider = provider
         self.repository = repository
-        self.prompt_builder = prompt_builder
+        self.prompt_pipeline = prompt_pipeline
         self.rag_service = rag_service
+        self.max_turns = get_settings().NUMBER_OF_TURNS
 
     async def ask(
         self,
@@ -39,6 +41,11 @@ class ChatService:
             conversation_id
         )
 
+        await self.repository.truncate(
+            conversation_id,
+            max_turns=self.max_turns
+        )
+                
         conversation.messages.append(
             ChatMessage(
                 role=Role.USER,
@@ -50,7 +57,7 @@ class ChatService:
             question,
         )
 
-        messages = await self.prompt_builder.build(
+        messages = await self.prompt_pipeline.build(
             conversation,
             rag_context=rag_context,
         )
@@ -82,6 +89,11 @@ class ChatService:
             conversation_id
         )
 
+        await self.repository.truncate(
+            conversation_id,
+            max_turns=self.max_turns
+        )
+        
         conversation.messages.append(
             ChatMessage(
                 role=Role.USER,
@@ -93,11 +105,10 @@ class ChatService:
             question,
         )
 
-        messages = await self.prompt_builder.build(
+        messages = await self.prompt_pipeline.build(
             conversation,
             rag_context=rag_context,
         )
-
         answer = ""
 
         async for token in self.provider.stream_chat(

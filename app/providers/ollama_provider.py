@@ -28,6 +28,7 @@ class OllamaProvider(LLMProvider):
             host=settings.ollama_host,
         )
         self.threads = int(settings.ollama_num_threads)
+        self.ctx_size = int(settings.OLLAMA_NUM_CTX)
 
     def _to_ollama_messages(
         self,
@@ -60,7 +61,12 @@ class OllamaProvider(LLMProvider):
             response = await self.client.chat(
                 model=self.model,
                 messages=ollama_messages,
-                options={'num_thread': self.threads}
+                keep_alive=-1,
+                options={
+                    'num_thread': self.threads,
+                    'num_ctx': self.ctx_size,
+                    'num_keep': 0,
+                }
             )
 
             duration = time.perf_counter() - start
