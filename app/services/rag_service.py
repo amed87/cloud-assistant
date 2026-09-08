@@ -81,7 +81,8 @@ class RagService:
                 documents[0].score,
             )
 
-            return documents[0].content
+            print(f"Top document content: {documents[0]}")
+            return documents[0].metadata.get("answer", "Keine Antwort gefunden.")
 
         except VectorStoreError:
         

@@ -3,6 +3,7 @@ import logging
 
 from chromadb import PersistentClient
 
+from app import documents
 from app.config.settings import get_settings
 from app.exceptions.vectorstore import VectorStoreError
 from app.vectorstores.base import VectorStore
@@ -31,11 +32,9 @@ class ChromaVectorStore(VectorStore):
         self,
         documents: list[VectorDocument],
     ) -> None:
-
         try:
-
             await asyncio.to_thread(
-                self.collection.add,
+                self.collection.upsert,
                 ids=[
                     document.id
                     for document in documents
@@ -54,10 +53,10 @@ class ChromaVectorStore(VectorStore):
                 ],
             )
 
-            logger.info(
-                "Stored %d document(s) in ChromaDB.",
-                len(documents),
-            )
+            stored_count = await asyncio.to_thread(self.collection.count)
+            expected = len(documents)
+            logger.info("Stored %d/%d documents in ChromaDB (collection total: %d).",
+            expected, expected, stored_count)
 
         except Exception as ex:
 

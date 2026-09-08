@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from app.documents.loader import DocumentLoader
-from app.documents.models import Document
+from app.documents.models import TextDocument
 
 
 class TextLoader(DocumentLoader):
@@ -9,7 +9,7 @@ class TextLoader(DocumentLoader):
     async def load(
         self,
         path: str,
-    ) -> Document:
+    ) -> TextDocument:
 
         file_path = Path(path)
 
@@ -17,7 +17,7 @@ class TextLoader(DocumentLoader):
             file_path,
         )
 
-        return Document(
+        return TextDocument(
             id=file_path.stem,
             source=str(file_path),
             content=content,

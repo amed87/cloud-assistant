@@ -15,6 +15,8 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
 
+    FAQ_INPUT_FILE: str = "./data/faq.csv"
+
     NUMBER_OF_TURNS: int = 5
 
     CHROMA_PATH: str = "./data/chroma"
