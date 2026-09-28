@@ -29,7 +29,14 @@ def setup_env(num_threads: int, profiler_output_path: str, profiler_output_forma
 
 # Starte den Chatbot-Server mit den neuen Env-Variablen
 async def setup(num_threads: int, profiler_output_path: str, profiler_output_format: str, server: asyncio.subprocess.Process = None) -> asyncio.subprocess.Process:
-    if (not server) or (server and not (os.environ["ollama_num_threads"] == num_threads or os.environ["PROFILER_OUTPUT_PATH"] == profiler_output_path or os.environ["PROFILER_OUTPUT_FORMAT"] == profiler_output_format)):
+    needs_restart = (
+        server is None
+        or not os.environ["ollama_num_threads"] == str(num_threads) 
+        or not os.environ["PROFILER_OUTPUT_PATH"] == profiler_output_path 
+        or not os.environ["PROFILER_OUTPUT_FORMAT"] == profiler_output_format
+    )
+
+    if needs_restart:
         if server: server.terminate()
         kill_port()
         setup_env(num_threads, profiler_output_path, profiler_output_format)
@@ -88,7 +95,7 @@ async def loop_requests(thread_range: list[int], endpoints: list[str], messages:
             async with httpx.AsyncClient(base_url=base_url) as client: 
                 await wait_for_ready(client)
             req["response"] = await send_requests(req["endpoint"], {"conversation_id": req["conversation_id"], "message": req["message"]})
-        except requests.exceptions.RequestException as e:
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
             print("Error:", e)
 
     if server: server.terminate()

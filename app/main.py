@@ -1,8 +1,12 @@
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from fastapi import Request
 from app.middleware.logging import logging_middleware
-from app.middleware.profiler import profiler_middleware
+from app.middleware.profiling.profiler import profiler
 
 from app.api.chat import router as chat_router
 from app.config.settings import get_settings
@@ -19,8 +23,16 @@ app = FastAPI(
     version=settings.app_version,
 )
 
+WEB_DIR = Path(__file__).parent / "web"
+app.mount("/portal-assets", StaticFiles(directory=WEB_DIR), name="portal-assets")
+
+
+@app.get("/", include_in_schema=False)
+async def portal():
+    return FileResponse(WEB_DIR / "index.html")
+
 app.middleware("http")(logging_middleware)
-app.middleware("http")(profiler_middleware)
+app.middleware("http")(profiler.profile)
 
 register_exception_handlers(app)
 

@@ -126,7 +126,6 @@ class ChromaVectorStore(VectorStore):
         self,
         ids: list[str],
     ) -> None:
-
         try:
 
             await asyncio.to_thread(
@@ -148,3 +147,13 @@ class ChromaVectorStore(VectorStore):
             raise VectorStoreError(
                 "Fehler beim Löschen aus ChromaDB."
             ) from ex
+
+    def get(self) -> dict[str, object]:
+        try:
+            db = self.collection.get(include=["metadatas"])
+            logger.info("Gesamte Datenbank gefetcht.")
+            return db
+        except Exception as e:
+            raise VectorStoreError(
+                f"Fehler beim Fetchen der Datenbank: {e}"
+            )

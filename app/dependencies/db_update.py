@@ -1,4 +1,4 @@
-from app.documents.faq_loader_CSV import FAQLoaderCSV
+from app.documents.faq_loader_csv import FAQLoaderCSV
 from app.documents.faq_importer import FAQImporter
 from app.embeddings.ollama_provider import OllamaEmbeddingProvider
 from app.services.update_service import UpdateService

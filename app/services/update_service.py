@@ -27,3 +27,6 @@ class UpdateService:
         except Exception:
             logger.exception("Error occurred while updating database")
             raise
+
+    def get_database(self) -> dict[str]:
+        return self.importer.get_current_database()

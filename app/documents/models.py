@@ -21,6 +21,8 @@ class FAQEntry(BaseModel):
     id: str
     question: str
     answer: str
+    subjects: list[str] = Field(default_factory=list)
+    question_type: str
     keywords: list[str] = Field(default_factory=list)
 
 

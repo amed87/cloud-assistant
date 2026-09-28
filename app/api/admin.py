@@ -18,3 +18,11 @@ async def update_database(background_tasks: BackgroundTasks, update_service: Upd
 
     except Exception as e:
         return {"status": f"Error occurred while initiating database update."}
+
+@router.get("/db")
+async def get_database(update_service: UpdateService = Depends(get_update_service)):
+    try:
+        db = update_service.get_database()
+        return {"DB": db}
+    except Exception as e:
+        return {"status": "Error while fetching database"}

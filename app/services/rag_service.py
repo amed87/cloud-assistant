@@ -3,10 +3,12 @@ import logging
 from pydantic import BaseModel
 
 from app.config.settings import get_settings
+from app.config.content_settings import load_content_config
 from app.embeddings.base import EmbeddingProvider
 from app.exceptions.vectorstore import VectorStoreError
 from app.vectorstores.base import VectorStore
 from app.vectorstores.models import SearchResult
+from app.answerability.answerability_gate import AnswerabilityGate
 
 
 logger = logging.getLogger(__name__)
@@ -47,11 +49,16 @@ class RagService:
         self,
         embedding_provider: EmbeddingProvider,
         vector_store: VectorStore,
+        answerability_gate: AnswerabilityGate | None,
     ):
         settings = get_settings()
 
         self.embedding_provider = embedding_provider
         self.vector_store = vector_store
+        self.answerability_gate = answerability_gate
+        self.content_config = load_content_config(
+            path=settings.CONTENT_CONFIG_FILE
+        )
 
         self.top_k = settings.RAG_TOP_K
         self.min_score = settings.RAG_MIN_SCORE
@@ -63,26 +70,23 @@ class RagService:
         logger.info("Retrieving top document for question: %s", question)
 
         try:
-            embedding = await self.embedding_provider.embed(
+            documents = await self._retrieve_candidates(
                 question,
+                limit=2,
             )
 
-            documents = await self.vector_store.search(
-                embedding=embedding,
-                limit=1,
-            )
+            decision = self.answerability_gate.evaluate_quick(
+            question=question,
+            documents=documents,
+        )
 
-            if not documents or documents[0].score < self.min_score:
-                logger.info("No documents found for the question.")
-                return "Keine relevanten Informationen gefunden."
+            if not decision.accepted:
+                logger.info(f"No corresponding FAQ-Entry found for the question. \nReason: {decision.reason} \nConfidence score: {decision.confidence}")
+                return self.content_config.standard_fallback
 
-            logger.info(
-                "Top document retrieved with score: %.3f",
-                documents[0].score,
-            )
 
-            print(f"Top document content: {documents[0]}")
-            return documents[0].metadata.get("answer", "Keine Antwort gefunden.")
+            logger.info(f"Top document retrieved with score: {decision.document.score}")
+            return decision.document.metadata.get("answer")
 
         except VectorStoreError:
         
@@ -95,7 +99,7 @@ class RagService:
         except Exception:
 
             logger.exception(
-                "Unexpected error while retrieving RAG context."
+                "Unexpected error while retrieving answer."
             )
 
             raise
@@ -111,13 +115,8 @@ class RagService:
         )
 
         try:
-
-            embedding = await self.embedding_provider.embed(
+            documents = await self._retrieve_candidates(
                 question,
-            )
-
-            documents = await self.vector_store.search(
-                embedding=embedding,
                 limit=self.top_k,
             )
 
@@ -157,3 +156,15 @@ class RagService:
             )
 
             raise
+
+    async def _retrieve_candidates(
+            self, 
+            question: str, 
+            limit: int,
+        ) -> list[SearchResult]:
+        embedding = await self.embedding_provider.embed(question)
+
+        return await self.vector_store.search(
+            embedding=embedding,
+            limit=limit,
+        )

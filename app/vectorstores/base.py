@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 from app.vectorstores.models import (
     SearchResult,
@@ -37,4 +38,11 @@ class VectorStore(ABC):
         """
         Löscht Dokumente.
         """
+        pass
+
+    @abstractmethod
+    def get(
+        self
+    ) -> dict[str, Any]:
+        """Fetcht gesamte Datenbank als String"""
         pass

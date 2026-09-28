@@ -55,6 +55,7 @@ vector_store = ChromaVectorStore()
 rag_service = RagService(
     embedding_provider=embedding_provider,
     vector_store=vector_store,
+    answerability_gate=None,
 )
 
 

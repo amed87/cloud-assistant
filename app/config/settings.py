@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     FAQ_INPUT_FILE: str = "./data/faq.csv"
+    CONTENT_CONFIG_FILE: str = "./content_config.yaml"
 
     NUMBER_OF_TURNS: int = 5
 
@@ -24,6 +25,7 @@ class Settings(BaseSettings):
 
     RAG_TOP_K: int = 5
     RAG_MIN_SCORE: float = 0.3
+    RAG_MIN_SCORE_GAP: float = 0.1
 
     ENABLE_PROFILER: bool = True
     PROFILER_SAMPLE_RATE: float = 0.1

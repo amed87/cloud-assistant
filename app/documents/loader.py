@@ -42,7 +42,7 @@ class FAQLoader(DocumentLoader):
             return await to_thread(
             self._parse,
             path,
-            encoding="utf-8",
+            encoding="utf-8-sig",
         )       
 
     @abstractmethod

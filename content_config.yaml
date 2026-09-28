@@ -1,0 +1,6 @@
+# Diese Datei kann vom Büromanagement bearbeitet werden.
+# Die Texte in Anführungszeichen erscheinen im Chatbot, wenn keine
+# passende Antwort gefunden wurde bzw. das Antwort-Feld leer ist.
+
+standard_fallback: "Keine relevanten Informationen gefunden."
+keine_antwort: "Keine Antwort gefunden."
