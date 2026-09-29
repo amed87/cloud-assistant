@@ -56,9 +56,9 @@ class FAQImporter(DocumentImporter):
                         "source": faq.source,
                         "chunk_index": 0,
                         "answer": entry.answer,
-                        "subjects": entry.subjects,
-                        "question_type": entry.question_type,
-                        "keywords": entry.keywords,
+                        "subjects": entry.subjects if entry.subjects else None,
+                        "question_type": entry.question_type if entry.question_type else None,
+                        "keywords": entry.keywords if entry.keywords else None,
                     },
                 )
             )

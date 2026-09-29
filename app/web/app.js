@@ -32,7 +32,7 @@ function appendMessage(role, text, pending = false) {
   if (role === "assistant") {
     const avatar = document.createElement("span");
     avatar.className = "message-avatar";
-    avatar.textContent = "CA";
+    avatar.textContent = "FB";
     row.append(avatar);
   }
   const body = document.createElement("div");

@@ -4,6 +4,9 @@ from pathlib import Path
 import hashlib
 import json
 import csv
+import logging
+
+logger = logging.getLogger(__name__)
 
 class FAQLoaderCSV(FAQLoader):
     @staticmethod
@@ -37,18 +40,25 @@ class FAQLoaderCSV(FAQLoader):
     ) -> list[FAQEntry]:
         """Parst die FAQ-Einträge aus einer CSV-Datei."""
         with path.open(encoding=encoding) as f:
-            reader = csv.DictReader(f)
+            reader = csv.DictReader(f, delimiter=';')
             entries = []
             for row in reader:
-                if not (row and row["ID"] and row["Themen"] and row["Schlüsselwörter"] and row["Frage"] and row["Antwort"] and row["Fragetyp"]):
+                if not (row and row["ID"] and row["Frage"] and row["Antwort"]):
+                    data = {}
+                    data["id"] = row["ID"] if row["ID"] else "undefined"
+                    data["ques"] = row["Frage"] if row["Frage"] else "undefined"
+                    data["ans"] = row["Antwort"] if row["Antwort"] else "undefined"
+                    logger.info(f"Überspringe Eintrag mangels benötigter Daten: {data}")
                     continue
-                subjects = row["Themen"].split()
-                keywords = row["Schlüsselwörter"].split()
+                
+                subjects = row["Themen"].split() if row["Themen"] else []
+                keywords = row["Schlüsselwörter"].split() if row["Schlüsselwörter"] else []
+                question_type = row["Fragetyp"] if row["Fragetyp"] else ""
                 version_hash = self._generate_entry_hash(
                     question=row["Frage"],
                     answer=row["Antwort"],
                     subjects=subjects,
-                    question_type=row["Fragetyp"],
+                    question_type=question_type,
                     keywords=keywords,
                 )
                 entries.append(
@@ -57,7 +67,7 @@ class FAQLoaderCSV(FAQLoader):
                         question=row["Frage"],
                         answer=row["Antwort"],
                         subjects=subjects,
-                        question_type=row["Fragetyp"],
+                        question_type=question_type,
                         keywords=keywords,
                     )
                 )
