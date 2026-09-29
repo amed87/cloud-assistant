@@ -6,6 +6,8 @@ from app.services.rag_service import RagService, RagContext
 from app.vectorstores.models import SearchResult
 from app.config.content_settings import load_content_config
 
+CONTENT_CONFIG_PATH = Path(__file__).parents[2] / "content_config.yaml"
+
 
 class FakeEmbeddingProvider:
     async def embed(self, text: str) -> list[float]:
@@ -27,9 +29,7 @@ def create_service(monkeypatch, documents: list) -> RagService:
         {
             "RAG_TOP_K": 3,
             "RAG_MIN_SCORE": 0.7,
-            "CONTENT_CONFIG_FILE": str(
-                Path(__file__).parents[3] / "content_config.yaml"
-            ),
+            "CONTENT_CONFIG_FILE": str(CONTENT_CONFIG_PATH),
         },
     )
     settings = settings_type()
@@ -102,7 +102,7 @@ async def test_quick_retrieve_returns_top_answer(monkeypatch) -> None:
 async def test_quick_retrieve_returns_fallback_for_irrelevant_result(
     monkeypatch,
 ) -> None:
-    content_config = load_content_config()
+    content_config = load_content_config(str(CONTENT_CONFIG_PATH))
     service = create_service(
         monkeypatch,
         [result(0.6)],
@@ -117,7 +117,7 @@ async def test_quick_retrieve_returns_fallback_for_irrelevant_result(
 async def test_quick_retrieve_returns_fallback_for_ambiguous_results(
     monkeypatch,
 ) -> None:
-    content_config = load_content_config()
+    content_config = load_content_config(str(CONTENT_CONFIG_PATH))
     service = create_service(
         monkeypatch,
         [result(0.9), result(0.85)],
@@ -145,7 +145,7 @@ def test_rag_context_formats_documents() -> None:
 async def test_quick_retrieve_uses_fallback_without_answer(
     monkeypatch,
 ) -> None:
-    content_config = load_content_config()
+    content_config = load_content_config(str(CONTENT_CONFIG_PATH))
     service = create_service(
         monkeypatch,
         [result(0.9, answer=None)],
@@ -158,7 +158,7 @@ async def test_quick_retrieve_uses_fallback_without_answer(
 
 @pytest.mark.asyncio
 async def test_quick_retrieve_handles_empty_answer_string(monkeypatch) -> None:
-    content_config = load_content_config()
+    content_config = load_content_config(str(CONTENT_CONFIG_PATH))
     service = create_service(monkeypatch, [result(0.9, answer="")])
     answer = await service.quick_retrieve("Frage")
     assert answer == content_config.standard_fallback

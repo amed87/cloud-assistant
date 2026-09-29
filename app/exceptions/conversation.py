@@ -1,7 +1,7 @@
-from app.exceptions.base import CloudAssistantError
+from app.exceptions.base import FaqBotError
 
 
-class ConversationError(CloudAssistantError):
+class ConversationError(FaqBotError):
     """Fehler im Conversation Repository."""
 
 

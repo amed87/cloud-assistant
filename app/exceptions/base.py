@@ -1,4 +1,4 @@
-class CloudAssistantError(Exception):
+class FaqBotError(Exception):
     """Basisklasse aller Anwendungsfehler."""
 
     def __init__(

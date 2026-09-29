@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
 
-    app_name: str = "Cloud Assistant"
+    app_name: str = "FAQ-Bot"
     app_version: str = "0.1.0"
 
     ollama_host: str = "http://localhost:11434"
@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     NUMBER_OF_TURNS: int = 5
 
     CHROMA_PATH: str = "./data/chroma"
-    CHROMA_COLLECTION: str = "cloud-assistant"
+    CHROMA_COLLECTION: str = "faq-bot"
 
     RAG_TOP_K: int = 5
     RAG_MIN_SCORE: float = 0.3

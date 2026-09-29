@@ -1,7 +1,7 @@
-from app.exceptions.base import CloudAssistantError
+from app.exceptions.base import FaqBotError
 
 
-class ProviderError(CloudAssistantError):
+class ProviderError(FaqBotError):
     """Allgemeiner Providerfehler."""
 
 

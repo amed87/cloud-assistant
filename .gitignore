@@ -1,3 +1,8 @@
 # Ignore Python cache files
 **/__pycache__/**
 **/data/**
+.venv/
+.env
+dist/
+.pytest_cache/
+.coverage

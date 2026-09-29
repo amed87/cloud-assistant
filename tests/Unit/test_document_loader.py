@@ -22,8 +22,8 @@ async def test_text_loader_loads_text_document(tmp_path) -> None:
 async def test_faq_loader_csv_loads_faq_document(tmp_path) -> None:
     input_file = tmp_path / "faq.csv"
     input_file.write_text(
-        "Frage,Antwort,Schlüsselwörter\n"
-        "Was ist Python?,Eine Programmiersprache,python programmierung\n",
+        "ID;Frage;Antwort;Themen;Fragetyp;Schlüsselwörter\n"
+        "python;Was ist Python?;Eine Programmiersprache;Programmierung;Definition;python programmierung\n",
         encoding="utf-8",
     )
 
@@ -35,9 +35,11 @@ async def test_faq_loader_csv_loads_faq_document(tmp_path) -> None:
     assert len(document.entries) == 1
 
     entry = document.entries[0]
-    assert entry.id == "0"
+    assert entry.id.startswith("python:")
     assert entry.question == "Was ist Python?"
     assert entry.answer == "Eine Programmiersprache"
+    assert entry.subjects == ["Programmierung"]
+    assert entry.question_type == "Definition"
     assert entry.keywords == ["python", "programmierung"]
 
 

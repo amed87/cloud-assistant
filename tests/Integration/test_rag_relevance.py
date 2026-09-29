@@ -11,8 +11,8 @@ from app.config.content_settings import load_content_config
 from app.config.settings import get_settings
 
 
-GOLDEN_CSV = Path(__file__).parents[3] / "data" / "test_queries.csv"
-content = load_content_config()
+GOLDEN_CSV = Path(__file__).parents[2] / "data" / "test_queries.csv"
+content = load_content_config(str(Path(__file__).parents[2] / "content_config.yaml"))
 
 
 def load_cases() -> list[dict]:

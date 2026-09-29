@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from app.exceptions.base import CloudAssistantError
+from app.exceptions.base import FaqBotError
 from app.exceptions.provider import (
     ProviderUnavailableError,
     ProviderTimeoutError,
@@ -44,10 +44,10 @@ def register_exception_handlers(app: FastAPI):
             },
         )
 
-    @app.exception_handler(CloudAssistantError)
+    @app.exception_handler(FaqBotError)
     async def application_error_handler(
         request,
-        exc: CloudAssistantError,
+        exc: FaqBotError,
     ):
 
         logger.exception(exc.message)
