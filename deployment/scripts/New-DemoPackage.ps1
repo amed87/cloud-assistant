@@ -6,10 +6,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$RepositoryParent = Join-Path $RepositoryRoot '\..\'
 $PackageName = "FAQ-Bot-$Version"
 $TemporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) "$PackageName-$PID"
 $StageDirectory = Join-Path $TemporaryRoot $PackageName
-$DistributionDirectory = Join-Path $RepositoryRoot 'dist'
+$DistributionDirectory = Join-Path $RepositoryParent 'dist'
 $ArchivePath = Join-Path $DistributionDirectory "$PackageName.zip"
 
 if (Test-Path $TemporaryRoot) {
