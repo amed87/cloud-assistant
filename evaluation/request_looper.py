@@ -1,3 +1,18 @@
+"""Lasten-/Performance-Loop für den lokalen Chatbot-Server.
+
+Läuft gegen den mit uvicorn gestarteten API-Server und schickt in einer
+vordefinierten Matrix wiederholte Requests an verschiedene Endpunkte.
+
+Aufruf: python evaluation/request_looper.py
+
+Wichtige Anpassungen im Skript:
+- thread_range: Thread-Anzahl pro Testlauf
+- endpoints: zu prüfende API-Endpunkte
+- messages: Testfragen
+- repeats: Wiederholungen je Anfrage
+- profiler_output_path / profiler_output_format: Ausgabe des Profilers
+"""
+
 import requests
 import httpx
 import os
@@ -6,11 +21,12 @@ from pathlib import Path
 import psutil
 from app.config.settings import get_settings
 
-PROJECT_ROOT= Path(__file__).resolve().parents[2]
+PROJECT_ROOT= Path(__file__).resolve().parents[1]
 VENV = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
 base_url = "http://127.0.0.1:8000"
 endpoints = {
              "chat": f"{base_url}/chat",
+             "quick": f"{base_url}/chat/quick",
              "stream": f"{base_url}/stream"
              }
 message_options = {
@@ -20,14 +36,16 @@ message_options = {
     "known_harder": "What is Kubernetes for?"
 }
 
-# Benutze Environment-Variablen um temporär das Default-Environment zu überschreiben. 
+# Die Laufzeit-Umgebung wird vor dem Start des Servers gezielt überschrieben,
+# damit die Performance-Tests mit der gewünschten Threadzahl und Profil-Ausgabe laufen.
 def setup_env(num_threads: int, profiler_output_path: str, profiler_output_format: str):
     os.environ["ollama_num_threads"] = str(num_threads)
     os.environ["PROFILER_OUTPUT_PATH"] = profiler_output_path
     os.environ["PROFILER_OUTPUT_FORMAT"] = profiler_output_format
     return True
 
-# Starte den Chatbot-Server mit den neuen Env-Variablen
+# Der Server wird nur neu gestartet, wenn sich die für den Test relevanten
+# Konfigurationen geändert haben. Dadurch bleiben wiederholte Anfragen schnell.
 async def setup(num_threads: int, profiler_output_path: str, profiler_output_format: str, server: asyncio.subprocess.Process = None) -> asyncio.subprocess.Process:
     needs_restart = (
         server is None
@@ -44,6 +62,8 @@ async def setup(num_threads: int, profiler_output_path: str, profiler_output_for
     return server
 
 async def wait_for_ready(client: httpx.AsyncClient, retries=30, delay=1):
+    # Der Server braucht kurz Zeit zum Hochfahren; mit wenigen Retries wird
+    # ein kurzer Start-Delay robust abgefangen, ohne den Test zu blockieren.
     for _ in range(retries):
         try:
             await client.get(f"{base_url}/docs")  
@@ -58,7 +78,8 @@ def kill_port(port=8000):
             p = psutil.Process(conn.pid)
             p.kill()
 
-# Erstelle die Liste der Anfragen für den aktuellen Test
+# Die Testmatrix besteht aus allen Kombinationen aus Threadzahl, Endpoint,
+# Nachricht und Conversation-ID. Jede Wiederholung erhält dabei einen eigenen Eintrag.
 def build_requests(thread_range: list[int], endpoints: list[str], messages: list[str], conversation_ids: list[int], repeats: int) -> list[dict]:
     reqs = []
     for num in thread_range:
@@ -82,14 +103,16 @@ async def send_requests(url: str, data: dict):
         response = await client.post(url, json=data)
         return response
 
-# Mache alle Anfragen für den aktuellen Test
+# Jede eingetragene Anfrage wird nacheinander abgearbeitet. Für die erste
+# Wiederholung einer Konfiguration wird der Server neu vorbereitet; danach werden nur noch
+# Requests gesendet und das Ergebnis in der Matrix gespeichert.
 async def loop_requests(thread_range: list[int], endpoints: list[str], messages: list[str], conversation_ids: list[int], repeats: int, profiler_output_path: str, profiler_output_format: str) -> list[dict]:
     reqs = build_requests(thread_range, endpoints, messages, conversation_ids, repeats)
     server = None
 
     for req in reqs:
         try:
-            if req["repeat"] == 1: # Nur wenn es sich nicht um eine Reine Wiederholung der Anfrage handelt
+            if req["repeat"] == 1:  # Nur bei der ersten Wiederholung der Anfrage wird die Server-Konfiguration neu gesetzt.
                 server = await setup(req["threads"], profiler_output_path, profiler_output_format)
             print("setup done")
             async with httpx.AsyncClient(base_url=base_url) as client: 
@@ -105,7 +128,7 @@ async def loop_requests(thread_range: list[int], endpoints: list[str], messages:
 
 async def main():
     # Checke wie die Anzahl Threads Load und Geschwindigkeit beeinflusst
-    reqs = await loop_requests(range(4,5), [endpoints["chat"]], [message_options["known_simple"]], [0], 50, str(PROJECT_ROOT/"analytics"/"num_threads_5.html"), "html")
+    reqs = await loop_requests(range(4,5), [endpoints["quick"], endpoints["chat"]], [message_options["known_simple"]], [0], 50, str(PROJECT_ROOT/".."/"eval"/"num_threads_5.html"), "html")
 
 if __name__=='__main__':
     asyncio.run(main())

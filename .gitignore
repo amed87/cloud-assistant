@@ -6,3 +6,4 @@
 dist/
 .pytest_cache/
 .coverage
+analytics/Outputs/
