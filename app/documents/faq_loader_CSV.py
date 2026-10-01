@@ -1,5 +1,6 @@
 from app.documents.models import FAQEntry
 from app.documents.loader import FAQLoader
+from app.exceptions.document import FAQLoadError
 from pathlib import Path
 import hashlib
 import json
@@ -38,37 +39,57 @@ class FAQLoaderCSV(FAQLoader):
         path: Path,
         encoding: str,
     ) -> list[FAQEntry]:
-        """Parst die FAQ-Einträge aus einer CSV-Datei."""
-        with path.open(encoding=encoding) as f:
-            reader = csv.DictReader(f, delimiter=';')
-            entries = []
-            for row in reader:
-                if not (row and row["ID"] and row["Frage"] and row["Antwort"]):
-                    data = {}
-                    data["id"] = row["ID"] if row["ID"] else "undefined"
-                    data["ques"] = row["Frage"] if row["Frage"] else "undefined"
-                    data["ans"] = row["Antwort"] if row["Antwort"] else "undefined"
-                    logger.info(f"Überspringe Eintrag mangels benötigter Daten: {data}")
-                    continue
-                
-                subjects = row["Themen"].split() if row["Themen"] else []
-                keywords = row["Schlüsselwörter"].split() if row["Schlüsselwörter"] else []
-                question_type = row["Fragetyp"] if row["Fragetyp"] else ""
-                version_hash = self._generate_entry_hash(
-                    question=row["Frage"],
-                    answer=row["Antwort"],
-                    subjects=subjects,
-                    question_type=question_type,
-                    keywords=keywords,
-                )
-                entries.append(
-                    FAQEntry(
-                        id=f"{row['ID']}:{version_hash}",
-                        question=row["Frage"],
-                        answer=row["Antwort"],
+        """Parse FAQ entries from a CSV file."""
+        try:
+            with path.open(encoding=encoding) as file:
+                reader = csv.DictReader(file, delimiter=';')
+                required_columns = {"ID", "Frage", "Antwort"}
+                missing_columns = required_columns - set(reader.fieldnames or [])
+
+                if missing_columns:
+                    missing = ", ".join(sorted(missing_columns))
+                    message = f"FAQ CSV is missing required columns: {missing}."
+                    raise FAQLoadError(message)
+
+                entries = []
+                for row in reader:
+                    question = row.get("Frage") or ""
+                    answer = row.get("Antwort") or ""
+                    entry_id = row.get("ID") or ""
+
+                    if not (entry_id and question and answer):
+                        logger.info(
+                            "Skipping FAQ row with missing ID, question, or answer in %s.",
+                            path,
+                        )
+                        continue
+
+                    subjects = (row.get("Themen") or "").split()
+                    keywords = (row.get("Schlüsselwörter") or "").split()
+                    question_type = row.get("Fragetyp") or ""
+                    version_hash = self._generate_entry_hash(
+                        question=question,
+                        answer=answer,
                         subjects=subjects,
                         question_type=question_type,
                         keywords=keywords,
                     )
-                )
+                    entries.append(
+                        FAQEntry(
+                            id=f"{entry_id}:{version_hash}",
+                            question=question,
+                            answer=answer,
+                            subjects=subjects,
+                            question_type=question_type,
+                            keywords=keywords,
+                        )
+                    )
             return entries
+        except FAQLoadError as ex:
+            logger.error("FAQ CSV loading failed: %s File: %s", ex.message, path)
+            raise
+        except (OSError, UnicodeError, csv.Error) as ex:
+            logger.exception("Failed to read or parse FAQ CSV file: %s", path)
+            raise FAQLoadError(
+                "FAQ CSV file could not be read or parsed."
+            ) from ex

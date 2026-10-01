@@ -15,5 +15,5 @@ class PromptStep(ABC):
         messages: list[ChatMessage],
         *_: t.Any,
     ) -> None:
-        """Erweitert die Prompt-Nachrichten."""
+        """Extend the prompt messages."""
         pass

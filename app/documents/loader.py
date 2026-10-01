@@ -12,7 +12,7 @@ class DocumentLoader(ABC):
         self,
         path: str,
     ) -> Document:
-        """Lädt ein Dokument aus einer Datei."""
+        """Load a document from a file."""
         pass
 
 class FAQLoader(DocumentLoader):
@@ -21,7 +21,7 @@ class FAQLoader(DocumentLoader):
             self,
             path: str,
         ) -> FAQDocument:
-            """Lädt ein FAQ-Dokument aus einer Datei."""
+            """Load an FAQ document from a file."""
             file_path = Path(path)
 
             entries = await self._read_file(
@@ -38,7 +38,7 @@ class FAQLoader(DocumentLoader):
             self,
             path: Path,
         ) -> list[FAQEntry]:
-            """Liest die FAQ-Einträge aus einer Datei."""
+            """Read FAQ entries from a file."""
             return await to_thread(
             self._parse,
             path,
@@ -51,5 +51,5 @@ class FAQLoader(DocumentLoader):
         path: Path,
         encoding: str,
     ) -> list[FAQEntry]:
-        """Parst die FAQ-Einträge aus einer Datei."""
+        """Parse FAQ entries from a file."""
         pass  

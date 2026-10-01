@@ -3,6 +3,7 @@ import pytest
 from app.documents.faq_loader_csv import FAQLoaderCSV
 from app.documents.models import FAQDocument, TextDocument
 from app.documents.text_loader import TextLoader
+from app.exceptions.document import FAQLoadError
 
 
 @pytest.mark.asyncio
@@ -50,6 +51,20 @@ async def test_text_loader_raises_for_missing_file(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_faq_loader_csv_raises_for_missing_file(tmp_path) -> None:
-    with pytest.raises(FileNotFoundError):
+async def test_faq_loader_csv_wraps_missing_file(tmp_path, caplog) -> None:
+    with pytest.raises(FAQLoadError) as raised:
         await FAQLoaderCSV().load(str(tmp_path / "missing.csv"))
+
+    assert isinstance(raised.value.__cause__, FileNotFoundError)
+    assert "Failed to read or parse FAQ CSV file" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_faq_loader_csv_rejects_missing_required_columns(tmp_path, caplog) -> None:
+    input_file = tmp_path / "faq.csv"
+    input_file.write_text("ID;Frage\npython;Was ist Python?\n", encoding="utf-8")
+
+    with pytest.raises(FAQLoadError, match="Antwort"):
+        await FAQLoaderCSV().load(str(input_file))
+
+    assert "FAQ CSV loading failed" in caplog.text

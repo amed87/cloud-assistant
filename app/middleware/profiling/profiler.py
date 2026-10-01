@@ -21,7 +21,7 @@ class ProfileResult:
 
 
 class Profiler:
-    """Hält den prozessweiten Zustand des Profilers: Messung + Serialisierung."""
+    """Hold process-wide profiler state for sampling and report serialization."""
 
     def __init__(self, profiled_endpoints: set[str]) -> None:
         settings = get_settings()
@@ -41,7 +41,7 @@ class Profiler:
         )
 
     def _try_acquire(self) -> bool:
-        """Belegt die Profiler-Session, falls frei. Rückgabe False = überspringen."""
+        """Acquire the profiler session if available; return False to skip profiling."""
         if self._lock.locked():
             return False
         self._lock.acquire()
@@ -56,14 +56,14 @@ class Profiler:
 
         free = self._try_acquire()
         if not free:
-            logger.warning("Profiler ist bereits aktiv. Überspringe Profiling für diese Anfrage.")
+            logger.warning("Profiler is already active. Skipping profiling for this request.")
             return await call_next(request)
 
         try:
             try:
                 content = await request.json()
-            except Exception as e: 
-                logger.error(f"Profiler konnte Anfrage nicht verarbeiten: {e}")
+            except Exception:
+                logger.exception("Failed to parse profiling request JSON.")
                 return await call_next(request)
             
             request._body = json.dumps(content).encode()
@@ -88,7 +88,7 @@ class Profiler:
             try:
                 write_report(self._output_path, measurement)
             except Exception:
-                logger.exception("Profiler konnte Ergebnisse nicht schreiben.")
+                logger.exception("Failed to write profiling report.")
 
             return response
         finally:

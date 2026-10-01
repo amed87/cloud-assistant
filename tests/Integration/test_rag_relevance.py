@@ -69,6 +69,6 @@ async def test_quick_retrieve(rag_service, case) -> None:
     elif kategorie == "leeres_answer":
         assert answer == content.no_answer_fallback
     else:
-        # positiv, paraphrase, fast_treffer: Treffer erwartet – Score nahe Threshold kann schwanken
+        # positive, paraphrase, fast_match: a match is expected; scores near the threshold may vary.
         assert answer not in (content.standard_fallback, content.no_answer_fallback)
 

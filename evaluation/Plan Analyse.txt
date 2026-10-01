@@ -1,0 +1,29 @@
+-> Analyse von Load: Zeit/CPU/Memory, Chatbot/Ollama/VektorDB
+    -> Profiler ist erstellt
+    -> Chatbot + Ollama bereits dabei, VektorDB fehlt noch
+    -> Bisher: Zeit, CPU Ollama Prozesse, CPU Chatbot, CPU total, dasselbe für RAM, 
+    separate CSV mit Anfrage-Zeiten
+    -> Fehlende Aspekte:
+        -> Bis auf Anfrage-Zeiten bisher HTML, nicht so einfach maschinen-kombinierbar
+        -> Möglichkeit, Statistiken über mehrere Läufe zu berechnen
+
+-> Skript, um maschinell Anfragen zu stellen erstellt
+    -> Loop für mehrfache Durchläufe 
+    -> verschiedene Bedingungen:
+        -> # Ollama-Threads
+        -> Selbe Anfrage vs. noch nicht gestellte
+        -> Selbe Konversation vs. neue
+        -> Antwort in VektorDB vs. nicht
+    -> fehlt: 
+        -> # Ollama-Parallel
+        -> Standard-Einstellungen vs. Modell Always-In-Memory
+        -> \chat vs \stream
+        -> mehrere Anfragen simultan vs. einzeln
+    -> ausgeführte Kombinationen
+        -> 1 bis 4 Threads mit  Chat-Historie
+        -> 1 bis 4 Threads ohne Chat-Historie
+
+-> Analyse von Qualität
+    -> Grammatikalische Korrektheit von Antworten
+    -> Keine Antwort ausdenken wenn nicht in RAG
+    -> potentielle Verbesserungen für Qualität: Stichwörter beachten?

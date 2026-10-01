@@ -1,5 +1,5 @@
 class FaqBotError(Exception):
-    """Basisklasse aller Anwendungsfehler."""
+    """Base class for application errors."""
 
     def __init__(
         self,

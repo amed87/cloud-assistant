@@ -5,7 +5,6 @@ from pydantic import BaseModel
 from app.config.settings import get_settings
 from app.config.content_settings import load_content_config
 from app.embeddings.base import EmbeddingProvider
-from app.exceptions.vectorstore import VectorStoreError
 from app.vectorstores.base import VectorStore
 from app.vectorstores.models import SearchResult
 from app.answerability.answerability_gate import AnswerabilityGate
@@ -69,40 +68,23 @@ class RagService:
     ) -> str:
         logger.info("Retrieving top document for question: %s", question)
 
-        try:
-            documents = await self._retrieve_candidates(
-                question,
-                limit=2,
-            )
+        documents = await self._retrieve_candidates(
+            question,
+            limit=2,
+        )
 
-            decision = self.answerability_gate.evaluate_quick(
+        decision = self.answerability_gate.evaluate_quick(
             question=question,
             documents=documents,
         )
 
-            if not decision.accepted:
-                logger.info(f"No corresponding FAQ-Entry found for the question. \nReason: {decision.reason} \nConfidence score: {decision.confidence}")
-                return self.content_config.standard_fallback
+        if not decision.accepted:
+            logger.info(f"No corresponding FAQ-Entry found for the question. \nReason: {decision.reason} \nConfidence score: {decision.confidence}")
+            return self.content_config.standard_fallback
 
 
-            logger.info(f"Top document retrieved with score: {decision.document.score}")
-            return decision.document.metadata.get("answer")
-
-        except VectorStoreError:
-        
-            logger.exception(
-                "Vector store retrieval failed."
-            )
-
-            raise
-
-        except Exception:
-
-            logger.exception(
-                "Unexpected error while retrieving answer."
-            )
-
-            raise
+        logger.info(f"Top document retrieved with score: {decision.document.score}")
+        return decision.document.metadata.get("answer")
     
     async def retrieve(
         self,
@@ -114,48 +96,31 @@ class RagService:
             question,
         )
 
-        try:
-            documents = await self._retrieve_candidates(
-                question,
-                limit=self.top_k,
-            )
+        documents = await self._retrieve_candidates(
+            question,
+            limit=self.top_k,
+        )
 
-            logger.info(
-                "Retrieved %d document(s) before filtering.",
-                len(documents),
-            )
+        logger.info(
+            "Retrieved %d document(s) before filtering.",
+            len(documents),
+        )
 
-            relevant_documents = [
-                document
-                for document in documents
-                if document.score >= self.min_score
-            ]
+        relevant_documents = [
+            document
+            for document in documents
+            if document.score >= self.min_score
+        ]
 
-            logger.info(
-                "Retained %d document(s) with score >= %.2f.",
-                len(relevant_documents),
-                self.min_score,
-            )
+        logger.info(
+            "Retained %d document(s) with score >= %.2f.",
+            len(relevant_documents),
+            self.min_score,
+        )
 
-            return RagContext(
-                documents=relevant_documents,
-            )
-
-        except VectorStoreError:
-
-            logger.exception(
-                "Vector store retrieval failed."
-            )
-
-            raise
-
-        except Exception:
-
-            logger.exception(
-                "Unexpected error while retrieving RAG context."
-            )
-
-            raise
+        return RagContext(
+            documents=relevant_documents,
+        )
 
     async def _retrieve_candidates(
             self, 

@@ -2,12 +2,12 @@ from app.exceptions.base import FaqBotError
 
 
 class ProviderError(FaqBotError):
-    """Allgemeiner Providerfehler."""
+    """Base class for provider errors."""
 
 
 class ProviderUnavailableError(ProviderError):
-    """LLM nicht erreichbar."""
+    """The language model is unavailable."""
 
 
 class ProviderTimeoutError(ProviderError):
-    """LLM hat nicht rechtzeitig geantwortet."""
+    """The language model did not respond in time."""

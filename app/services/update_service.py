@@ -3,6 +3,7 @@ import logging
 from app.config.settings import get_settings
 from app.documents.importer import DocumentImporter
 from app.documents.loader import DocumentLoader
+from app.exceptions.base import FaqBotError
 
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,8 @@ class UpdateService:
             )
             await self.importer.import_data(document)
 
+        except FaqBotError:
+            raise
         except Exception:
             logger.exception("Error occurred while updating database")
             raise

@@ -7,7 +7,7 @@ from pandas import DataFrame
 
 @dataclass
 class Sample:
-    """Ein einzelner Messzeitpunkt."""
+    """A single measurement sample."""
     cpu: float
     cpu_total: float
     cpu_ollama: list[float]
@@ -28,7 +28,7 @@ class MetricsSeries:
     memory_mb_ollama: list[list[float]] = field(default_factory=list)
 
     def append(self, timestamp: float, sample: Sample) -> None:
-        """Hängt ein Sample an die Zeitreihen an."""
+        """Append a sample to the time series."""
         self.timestamps.append(timestamp)
         self.cpu_percentages_process.append(sample.cpu)
         self.cpu_percentages_total.append(sample.cpu_total)
@@ -38,13 +38,13 @@ class MetricsSeries:
         self.memory_mb_ollama.append(sample.mem_ollama)
 
     def to_dataframe(self) -> DataFrame:
-        """Baut die Tabelle für den HTML-Report."""
+        """Build the table used in the HTML report."""
         table = DataFrame({
             "time (s)": self.timestamps,
-            "CPU Chatbot (Prozent)": self.cpu_percentages_process,
-            "CPU total (Prozent)": self.cpu_percentages_total,
-            "RAM Chatbot (MB)": self.memory_mb_process,
-            "RAM total (Prozent)": self.memory_mb_total,
+            "Chatbot CPU (%)": self.cpu_percentages_process,
+            "Total CPU (%)": self.cpu_percentages_total,
+            "Chatbot RAM (MB)": self.memory_mb_process,
+            "Total RAM (%)": self.memory_mb_total,
         })
 
         for i, name in enumerate(self.ollama_names):
@@ -54,7 +54,7 @@ class MetricsSeries:
         return table.set_index("time (s)")
 
 class SamplingSession:
-    """Ein laufender Messlauf; stop() beendet ihn und liefert die Series."""
+    """A running sampling session; stop() ends it and returns the series."""
 
     def __init__(self, series: MetricsSeries, thread: threading.Thread, stop_event: threading.Event) -> None:
         self._series = series
@@ -69,14 +69,14 @@ class SamplingSession:
 
 # process discovery + sampling
 class ProcessMonitor:
-    """Überwacht CPU/RAM des Chatbot- und Ollama-Prozesse."""
+    """Monitor CPU and memory usage for the chatbot and Ollama processes."""
 
     def __init__(self) -> None:
         self._info: dict | None = None
         self._keywords: list[str] = ["ollama", "llama"]
 
     def start_sampling(self, interval: float) -> SamplingSession:
-        """Startet das Hintergrund-Sampling. Ruft bei Bedarf discover() auf."""
+        """Start background sampling, discovering processes if needed."""
         info = self._discover()                                    
         series = MetricsSeries(ollama_names=info["ollama_names"])
         stop_event = threading.Event()
@@ -89,7 +89,7 @@ class ProcessMonitor:
         return SamplingSession(series, thread, stop_event) 
 
     def _discover(self, refresh: bool = False) -> dict:
-        """Findet die Prozesse einmalig und cached sie (refresh=False-Default)."""
+        """Discover processes once and cache them unless refresh is requested."""
         if self._info is not None and not refresh:
             return self._info
         
@@ -105,27 +105,27 @@ class ProcessMonitor:
             self._info = process_info
         return process_info
 
-    # Durchsucht alle Systemprozesse nach den Keywords in self._keywords und liefert deren PIDs.
+    # Find all system processes whose names or command lines match self._keywords.
     def _find_processes(self)-> list[int]: 
         found_processes = []        
-        # Durchlaufe alle aktiven Systemprozesse
+        # Iterate over all active system processes.
         for proc in psutil.process_iter():
             try:
-                # Hole die vollständigen Kommandozeilen-Argumente als Liste
+                # Get the full command line as a list.
                 cmdline_list = proc.cmdline()                
-                # Falls die Liste existiert, wandle sie in einen String um
+                # Join the command-line arguments when available.
                 if cmdline_list:
                     cmd_string = " ".join(cmdline_list).lower()                    
-                    # Prüfe, ob 'ollama' im Befehl vorkommt
+                    # Check whether a configured keyword matches the command.
                     for keyword in self._keywords:
                         if (keyword in cmd_string or keyword in proc.name().lower()) and proc.pid not in found_processes:
                             found_processes.append(proc.pid)
                         
             except psutil.AccessDenied:
-                # Ignoriere Prozesse, für die dein Skript keine Rechte besitzt
+                # Skip processes that cannot be accessed.
                 continue
             except (psutil.NoSuchProcess, psutil.ZombieProcess):
-                # Ignoriere Prozesse, die sich während der Schleife beendet haben
+                # Skip processes that exited while iterating.
                 continue
                 
         return found_processes
@@ -138,11 +138,11 @@ class ProcessMonitor:
             p.cpu_percent(interval=None)
 
     def _collect_sample(self) -> Sample:
-        """Ein einzelnes Sample – wirft RuntimeError wenn ProcessMonitor._discover noch nicht gelaufen ist und psutil.NoSuchProcess bei toten Handles."""
+        """Collect one sample; may raise RuntimeError before discovery or NoSuchProcess for stale handles."""
         info = self._info
         if info is None:
             raise RuntimeError(
-                "ProcessMonitor.discover() wurde nicht aufgerufen."
+                "ProcessMonitor.discover() has not been called."
             )
         return Sample(
             cpu = round(info["process"].cpu_percent(interval=None) / info["num_cores"], 2),

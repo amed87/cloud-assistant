@@ -2,8 +2,8 @@ from app.exceptions.base import FaqBotError
 
 
 class ConversationError(FaqBotError):
-    """Fehler im Conversation Repository."""
+    """Base class for conversation repository errors."""
 
 
 class ConversationNotFoundError(ConversationError):
-    """Conversation existiert nicht."""
+    """The conversation does not exist."""

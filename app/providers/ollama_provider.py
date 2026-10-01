@@ -105,7 +105,7 @@ class OllamaProvider(LLMProvider):
             )
 
             raise ProviderError(
-                str(ex)
+                "The response could not be generated."
             ) from ex
 
         except Exception as ex:
@@ -181,7 +181,7 @@ class OllamaProvider(LLMProvider):
             )
 
             raise ProviderError(
-                str(ex)
+                "The response could not be generated."
             ) from ex
 
         except Exception as ex:

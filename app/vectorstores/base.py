@@ -44,5 +44,5 @@ class VectorStore(ABC):
     def get(
         self
     ) -> dict[str, Any]:
-        """Fetcht gesamte Datenbank als String"""
+        """Fetch the entire database as a string."""
         pass

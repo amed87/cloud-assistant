@@ -65,7 +65,7 @@ class ChromaVectorStore(VectorStore):
             )
 
             raise VectorStoreError(
-                "Fehler beim Speichern in ChromaDB."
+                "Failed to store documents in the vector store."
             ) from ex
 
     async def search(
@@ -119,7 +119,7 @@ class ChromaVectorStore(VectorStore):
             )
 
             raise VectorStoreError(
-                "Fehler bei der Suche in ChromaDB."
+                "Failed to search the vector store."
             ) from ex
 
     async def delete(
@@ -145,15 +145,19 @@ class ChromaVectorStore(VectorStore):
             )
 
             raise VectorStoreError(
-                "Fehler beim Löschen aus ChromaDB."
+                "Failed to delete documents from the vector store."
             ) from ex
 
     def get(self) -> dict[str, object]:
         try:
             db = self.collection.get(include=["metadatas"])
-            logger.info("Gesamte Datenbank gefetcht.")
+            logger.info("Fetched all documents from ChromaDB.")
             return db
-        except Exception as e:
-            raise VectorStoreError(
-                f"Fehler beim Fetchen der Datenbank: {e}"
+        except Exception as ex:
+            logger.exception(
+                "Failed to fetch all documents from ChromaDB."
             )
+
+            raise VectorStoreError(
+                "Failed to fetch the vector store database."
+            ) from ex

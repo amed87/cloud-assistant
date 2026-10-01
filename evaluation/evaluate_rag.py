@@ -1,11 +1,11 @@
-"""Bewertung des RAG-FAQ-Chatbots gegen das Golden Dataset.
+"""Evaluate the RAG FAQ chatbot against the golden dataset.
 
-Läuft gegen echte ChromaDB + Ollama und liefert:
-- Score + Antwort je Golden-Case (auch unterhalb des Thresholds)
-- Fehlertyp-Klassifikation pro Fall
-- gemeinsame Empfehlung für RAG_MIN_SCORE und RAG_MIN_SCORE_GAP
+Runs against ChromaDB and Ollama and reports:
+- Score and answer for each golden case, including cases below the threshold
+- Error classification for each case
+- Recommended values for RAG_MIN_SCORE and RAG_MIN_SCORE_GAP
 
-Aufruf: python -m evaluation.evaluate_rag
+Run with: python -m evaluation.evaluate_rag
 """
 
 import asyncio
@@ -20,25 +20,25 @@ from app.vectorstores.chroma import ChromaVectorStore
 
 GOLDEN_CSV = Path(__file__).resolve().parents[2] / "eval" / "data" / "golden_dataset.csv"
 
-# Bekannte, akzeptierte Limitierungen der aktuellen Architektur.
-# Diese Fälle sind als false_positive KORREKT klassifiziert – sie zeigen,
-# was ein reiner Threshold-Ansatz nicht leisten kann (Beantwortbarkeit).
+# Known, accepted limitations of the current architecture.
+# These cases are correctly classified as false positives because a threshold
+# alone cannot determine whether a question is answerable.
 KNOWN_FALSE_POSITIVES = {"fast_treffer"}
 
 @dataclass
 class CaseResult:
     question: str
     category: str
-    score: float               # 0.0, wenn kein Kandidat gefunden wurde
-    second_score: float | None  # Score des Zweitplatzierten (None, wenn nur einer)
-    entry_id: str | None       # stabile FAQ-ID des besten Treffers
-    answer: str                # FAQ-Antwort des Treffers oder ""
+    score: float               # 0.0 when no candidate is found.
+    second_score: float | None  # Score of the runner-up, or None if absent.
+    entry_id: str | None       # Stable FAQ ID of the best match.
+    answer: str                # Answer from the matched FAQ entry, or "".
     expected_entry: str
     error_type: str | None = None  # siehe Klassifikation in classify()
 
     @property
     def margin(self) -> float | None:
-        """Abstand zum Zweitplatzierten – klein = ambigue Entscheidung."""
+        """Return the margin to the runner-up; a small margin is ambiguous."""
         if self.second_score is None:
             return None
         return self.score - self.second_score
@@ -53,9 +53,9 @@ def classify(
     min_score_gap: float,
     fallback: str,
 ) -> str | None:
-    """Ordnet einem Ergebnis einen Fehlertyp zu (None = korrekt).
+    """Classify a result; None means it is correct.
 
-    Simuliert beide Answerability-Grenzen von quick_retrieve.
+    Simulate both answerability thresholds used by quick_retrieve.
     """
     expected_entry = case_result.expected_entry.strip()
     ambiguous = (
@@ -64,10 +64,10 @@ def classify(
     )
     treffer = case_result.score >= min_score and not ambiguous
 
-    if not expected_entry:                              # kein Treffer erwartet
+    if not expected_entry:                              # No match is expected.
         return None if not treffer else "false_positive"
 
-    if not treffer:                                     # Treffer erwartet, unter Threshold
+    if not treffer:                                     # A match is expected but below threshold.
         return "fallback_wo_hit_expected"
     if case_result.entry_id != expected_entry:
         return "wrong_entry"
@@ -78,9 +78,9 @@ def sweep_threshold_and_gap(
     score_candidates: list[float],
     gap_candidates: list[float],
 ) -> list[tuple[float, float, int, int, int]]:
-    """Für jedes Grenzwert-Paar: (min_score, gap, korrekte, falsche, false_positives).
+    """For each threshold pair: (min_score, gap, correct, wrong, false positives).
 
-    Verwendet die gemessenen Scores und simuliert beide Gate-Bedingungen.
+    Use measured scores to simulate both gate conditions.
     """
     results = []
     for min_score in score_candidates:
@@ -141,7 +141,7 @@ async def main() -> None:
             expected_entry=row["erwartete_entry_id"].strip(),
         ))
 
-    # Report: Score, Margin, getroffener Entry und simuliertes Verhalten
+    # Report the score, margin, matched entry, and simulated behavior.
     print(f"\n{'Question':<42} {'Category':<30} {'Score':>6} {'Margin':>7} {'Entry':>5}  Finding")
     for case_result in case_results:
         verdict = classify(
@@ -150,7 +150,7 @@ async def main() -> None:
             settings.RAG_MIN_SCORE_GAP,
             content_config.standard_fallback,
         )
-        # Erwartete Limitierung markieren statt verschweigen
+        # Mark known limitations instead of hiding them.
         if verdict == "false_positive" and case_result.category in KNOWN_FALSE_POSITIVES:
             verdict = "false_positive (bekannte Limitierung)"
         verdict = verdict or "ok"
@@ -161,7 +161,7 @@ async def main() -> None:
               f"{case_result.category:<26} "
               f"{case_result.score:>6.3f} {margin_str:>7} {entry_str:>5}  {verdict}")
 
-    # Gemeinsame Grenzwert-Suche; Gaps reichen bis über den größten Messwert.
+    # Search thresholds jointly; gaps extend beyond the largest measured value.
     score_candidates = [round(x * 0.05, 2) for x in range(4, 19)]  # 0.20 ... 0.90
     max_margin = max(
         (case_result.margin or 0.0 for case_result in case_results),

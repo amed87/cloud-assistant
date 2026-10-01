@@ -4,8 +4,8 @@ from app.services.rag_service import RagService
 
 logger = logging.getLogger(__name__)
 
-# Chat service ohne KI-generierte Antworten, sondern nur mit Embedding-Suchen,
-# für schnelle Antworten.
+# Chat service without AI-generated responses; it relies on embedding search
+# to return answers quickly.
 class QuickChatService:
 
     def __init__(

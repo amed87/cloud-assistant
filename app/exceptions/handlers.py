@@ -19,9 +19,6 @@ def register_exception_handlers(app: FastAPI):
         request,
         exc: ProviderUnavailableError,
     ):
-
-        logger.exception(exc.message)
-
         return JSONResponse(
             status_code=503,
             content={
@@ -34,9 +31,6 @@ def register_exception_handlers(app: FastAPI):
         request,
         exc: ProviderTimeoutError,
     ):
-
-        logger.exception(exc.message)
-
         return JSONResponse(
             status_code=504,
             content={
@@ -49,9 +43,6 @@ def register_exception_handlers(app: FastAPI):
         request,
         exc: FaqBotError,
     ):
-
-        logger.exception(exc.message)
-
         return JSONResponse(
             status_code=500,
             content={
