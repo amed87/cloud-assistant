@@ -2,6 +2,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.config.settings import get_settings
 from app.documents.chunker import DocumentChunker
 from app.documents.models import TextDocument
 from app.documents.text_importer import TextImporter
@@ -10,7 +11,11 @@ from app.vectorstores.chroma import ChromaVectorStore
 
 
 @pytest.mark.asyncio
-async def test_imported_document_can_be_retrieved() -> None:
+async def test_imported_document_can_be_retrieved(tmp_path, monkeypatch) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "CHROMA_PATH", str(tmp_path / "chroma"))
+    monkeypatch.setattr(settings, "CHROMA_COLLECTION", "rag-pipeline-test")
+
     document_id = f"kubernetes-test-{uuid4()}"
 
     document = TextDocument(

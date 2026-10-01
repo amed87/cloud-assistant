@@ -18,7 +18,7 @@ from app.config.settings import get_settings
 from app.embeddings.ollama_provider import OllamaEmbeddingProvider
 from app.vectorstores.chroma import ChromaVectorStore
 
-GOLDEN_CSV = Path("data/golden_dataset.csv")
+GOLDEN_CSV = Path(__file__).resolve().parents[2] / "eval" / "data" / "golden_dataset.csv"
 
 # Bekannte, akzeptierte Limitierungen der aktuellen Architektur.
 # Diese Fälle sind als false_positive KORREKT klassifiziert – sie zeigen,

@@ -1,0 +1,27 @@
+frage,erwartete_entry_id,erwartete_ausgabe,kategorie
+"Was ist Kubernetes?",Kubernetes-Definition,"Kubernetes ist eine Plattform zur Orchestrierung von Containern.",positiv
+"Wie lerne ich Englisch?",Englischlernen,Mit viel Übung,positiv
+"Kannst du mir Kubernetes erklären?",Kubernetes-Definition,"Kubernetes ist eine Plattform zur Orchestrierung von Containern.",paraphrase
+"Was genau macht Kubernetes?",Kubernetes-Definition,"Kubernetes ist eine Plattform zur Orchestrierung von Containern.",paraphrase
+"Erklär mir kurz, was Kubernetes ist.",Kubernetes-Definition,"Kubernetes ist eine Plattform zur Orchestrierung von Containern.",paraphrase
+"Wofür benutzt man Kubernetes?",Kubernetes-Definition,"Kubernetes ist eine Plattform zur Orchestrierung von Containern.",paraphrase
+"Wie kann ich mein Englisch verbessern?",Englischlernen,Mit viel Übung,paraphrase
+"Was hilft beim Englischlernen?",Englischlernen,Mit viel Übung,paraphrase
+"Gibt es Tipps zum Sprachenlernen?",Englischlernen,Mit viel Übung,paraphrase
+"Wie wird das Wetter morgen?",,Keine relevanten Informationen gefunden.,negativ
+"Wie wird das Wetter am Wochenende?",,Keine relevanten Informationen gefunden.,negativ
+"Rezept für Apfelkuchen",,Keine relevanten Informationen gefunden.,negativ
+"Wie lange dauert die Lieferung?",,Keine relevanten Informationen gefunden.,negativ
+"Was ist die Hauptstadt von Frankreich?",,Keine relevanten Informationen gefunden.,negativ
+"Wie öffne ich ein Konto?",,Keine relevanten Informationen gefunden.,negativ
+"Empfiehl mir einen Film.",,Keine relevanten Informationen gefunden.,negativ
+"Ist Kubernetes teuer?",,Keine relevanten Informationen gefunden.,fast_treffer
+"Wer entwickelt Kubernetes?",,Keine relevanten Informationen gefunden.,fast_treffer
+"Wie schwer ist Englisch zu lernen?",Englischlernen,Mit viel Übung,grenzfall_mehrdeutig
+"Was ist Kubernets?",Kubernetes-Definition,"Kubernetes ist eine Plattform zur Orchestrierung von Containern.",grenzfall_tippfehler
+"was ist kubernetes?",Kubernetes-Definition,"Kubernetes ist eine Plattform zur Orchestrierung von Containern.",grenzfall_kleinschreibung
+"kubernetes?",Kubernetes-Definition,"Kubernetes ist eine Plattform zur Orchestrierung von Containern.",grenzfall_fragment
+"Kubernetes Container orchestrieren?",Kubernetes-Definition,"Kubernetes ist eine Plattform zur Orchestrierung von Containern.",grenzfall_stichwoerter
+"english lernen wie?",Englischlernen,Mit viel Übung,grenzfall_stichwoerter
+"Wie lerne ich am besten eine neue Sprache wie zum Beispiel Englisch?",Englischlernen,Mit viel Übung,grenzfall_lange_frage
+"Tell me, what is Kubernetes?",Kubernetes-Definition,"Kubernetes ist eine Plattform zur Orchestrierung von Containern.",negativ_grenzfall_fremdsprache

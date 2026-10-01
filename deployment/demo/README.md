@@ -41,4 +41,4 @@ Die Modelle sind `gemma:2b` und `nomic-embed-text`. Modell-Downloads sind option
 .\start.ps1
 ```
 
-Öffnen Sie <http://127.0.0.1:8000>. Die Demo verwendet ein lokales Chroma-Verzeichnis unter `data/chroma`. Stellen Sie den Server nicht ohne vorherige Absicherung der Admin-Endpunkte ins Netzwerk.
+Öffnen Sie <http://127.0.0.1:8000>. Die Demo verwendet ein lokales Chroma-Verzeichnis unter `../data/chroma` (im übergeordneten Datenordner). Stellen Sie den Server nicht ohne vorherige Absicherung der Admin-Endpunkte ins Netzwerk.

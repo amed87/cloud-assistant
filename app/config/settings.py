@@ -15,12 +15,12 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
 
-    FAQ_INPUT_FILE: str = "./data/faq.csv"
+    FAQ_INPUT_FILE: str = "../data/DB-Input/Tabelle_Chatbotfragen.csv"
     CONTENT_CONFIG_FILE: str = "./content_config.yaml"
 
     NUMBER_OF_TURNS: int = 5
 
-    CHROMA_PATH: str = "./data/chroma"
+    CHROMA_PATH: str = "../data/chroma"
     CHROMA_COLLECTION: str = "faq-bot"
 
     RAG_TOP_K: int = 5
