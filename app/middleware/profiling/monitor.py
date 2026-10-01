@@ -1,9 +1,13 @@
 import psutil
 import os
+import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pandas import DataFrame
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class Sample:
@@ -48,7 +52,7 @@ class MetricsSeries:
         })
 
         for i, name in enumerate(self.ollama_names):
-            table[f"CPU {name} (Prozent)"] = [row[i] for row in self.cpu_percentages_ollama]
+            table[f"CPU {name} (%)"] = [row[i] for row in self.cpu_percentages_ollama]
             table[f"RAM {name} (MB)"] = [row[i] for row in self.memory_mb_ollama]
 
         return table.set_index("time (s)")
@@ -75,14 +79,19 @@ class ProcessMonitor:
         self._info: dict | None = None
         self._keywords: list[str] = ["ollama", "llama"]
 
-    def start_sampling(self, interval: float) -> SamplingSession:
+    def start_sampling(
+        self,
+        interval: float,
+        on_sample: Callable[[float, dict[str, float]], None] | None = None,
+        retain_samples: bool = True,
+    ) -> SamplingSession:
         """Start background sampling, discovering processes if needed."""
         info = self._discover()                                    
         series = MetricsSeries(ollama_names=info["ollama_names"])
         stop_event = threading.Event()
         thread = threading.Thread(
             target=self._poll_loop,
-            args=(series, interval, stop_event),
+            args=(series, interval, stop_event, on_sample, retain_samples),
             daemon=True,
         )
         thread.start()
@@ -159,14 +168,40 @@ class ProcessMonitor:
 
     
 
-    def _poll_loop(self, series: MetricsSeries, interval: float, stop_event: threading.Event) -> None:
+    def _poll_loop(
+        self,
+        series: MetricsSeries,
+        interval: float,
+        stop_event: threading.Event,
+        on_sample: Callable[[float, dict[str, float]], None] | None = None,
+        retain_samples: bool = True,
+    ) -> None:
         self._warmup()
-        start_time = time.time()
+        start_time = time.perf_counter()
         while not stop_event.is_set():
             try:
                 sample = self._collect_sample()
             except psutil.NoSuchProcess:
                 self._refresh()
                 continue
-            series.append(round(time.time() - start_time, 2), sample)
+            elapsed_time = round(time.perf_counter() - start_time, 2)
+            if retain_samples:
+                series.append(elapsed_time, sample)
+            if on_sample is not None:
+                resource_metrics = {
+                    "Chatbot CPU (%)": sample.cpu,
+                    "Total CPU (%)": sample.cpu_total,
+                    "Chatbot RAM (MB)": sample.mem,
+                    "Total RAM (%)": sample.mem_total,
+                }
+                for index, name in enumerate(series.ollama_names):
+                    resource_metrics[f"CPU {name} (%)"] = sample.cpu_ollama[index]
+                    resource_metrics[f"RAM {name} (MB)"] = sample.mem_ollama[index]
+                try:
+                    on_sample(elapsed_time, resource_metrics)
+                except Exception:
+                    logger.exception(
+                        "Resource sample callback failed; disabling the callback."
+                    )
+                    on_sample = None
             time.sleep(interval)

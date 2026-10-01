@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     PROFILER_SAMPLE_RATE: float = 0.1
     PROFILER_OUTPUT_PATH: str = "./load-profiler.html"
     PROFILER_OUTPUT_FORMAT: str = "html"
+    PROFILER_RUN_ID: str | None = None
     
 
     model_config = SettingsConfigDict(

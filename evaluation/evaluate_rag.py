@@ -34,7 +34,7 @@ class CaseResult:
     entry_id: str | None       # Stable FAQ ID of the best match.
     answer: str                # Answer from the matched FAQ entry, or "".
     expected_entry: str
-    error_type: str | None = None  # siehe Klassifikation in classify()
+    error_type: str | None = None  # See the classification in classify().
 
     @property
     def margin(self) -> float | None:
@@ -71,7 +71,7 @@ def classify(
         return "fallback_wo_hit_expected"
     if case_result.entry_id != expected_entry:
         return "wrong_entry"
-    return None                                         # inhaltliche Prüfung ggf. später
+    return None                                         # Content validation may be added later.
 
 def sweep_threshold_and_gap(
     case_results: list[CaseResult],
@@ -152,7 +152,7 @@ async def main() -> None:
         )
         # Mark known limitations instead of hiding them.
         if verdict == "false_positive" and case_result.category in KNOWN_FALSE_POSITIVES:
-            verdict = "false_positive (bekannte Limitierung)"
+            verdict = "false_positive (known limitation)"
         verdict = verdict or "ok"
 
         margin_str = f"{case_result.margin:.3f}" if case_result.margin is not None else "-"

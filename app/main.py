@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -18,9 +19,25 @@ from app.api.admin import router as admin_router
 configure_logging()
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    run_measurement_started = False
+    if settings.ENABLE_PROFILER and settings.PROFILER_RUN_ID:
+        profiler.start_run_measurement(settings.PROFILER_RUN_ID)
+        run_measurement_started = True
+
+    try:
+        yield
+    finally:
+        if run_measurement_started:
+            profiler.stop_run_measurement()
+
+
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
+    lifespan=lifespan,
 )
 
 WEB_DIR = Path(__file__).parent / "web"
