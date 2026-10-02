@@ -7,11 +7,12 @@ Runs against ChromaDB and Ollama and reports:
 
 Run with: python -m evaluation.evaluate_rag
 """
-
+import argparse
 import asyncio
 import csv
 from dataclasses import dataclass
 from pathlib import Path
+from datetime import datetime
 
 from app.config.content_settings import load_content_config
 from app.config.settings import get_settings
@@ -19,6 +20,7 @@ from app.embeddings.ollama_provider import OllamaEmbeddingProvider
 from app.vectorstores.chroma import ChromaVectorStore
 
 GOLDEN_CSV = Path(__file__).resolve().parents[2] / "eval" / "data" / "golden_dataset.csv"
+OUTPUT_PATH = Path(__file__).resolve().parents[2] / "eval" / "output" / f"results_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
 
 # Known, accepted limitations of the current architecture.
 # These cases are correctly classified as false positives because a threshold
@@ -35,6 +37,7 @@ class CaseResult:
     answer: str                # Answer from the matched FAQ entry, or "".
     expected_entry: str
     error_type: str | None = None  # See the classification in classify().
+    verdict: str | None = None  # "ok" or the classification result.
 
     @property
     def margin(self) -> float | None:
@@ -42,6 +45,16 @@ class CaseResult:
         if self.second_score is None:
             return None
         return self.score - self.second_score
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Evaluate RAG chatbot")
+    parser.add_argument(
+        "--output", "-o",
+        type=Path,
+        default=None,
+        help="Write full results to CSV file"
+    )
+    return parser.parse_args()
 
 def load_cases(path: Path) -> list[dict]:
     with open(path, "r", encoding="utf-8", newline="") as f:
@@ -115,12 +128,32 @@ def sweep_threshold_and_gap(
             ))
     return results
 
+def write_results_to_csv(results: list[CaseResult], path: Path) -> None:
+    """Schreibt alle Ergebnisse in eine CSV-Datei."""
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        # Header
+        writer.writerow([
+            "question", "category", "score", "second_score",
+            "margin", "entry_id", "answer", "expected_entry", "verdict"
+        ])
+        
+        for r in results:
+            margin = f"{r.margin:.3f}" if r.margin is not None else ""
+            writer.writerow([
+                r.question, r.category, f"{r.score:.3f}",
+                f"{r.second_score:.3f}" if r.second_score is not None else "",
+                margin, r.entry_id or "", r.answer, r.expected_entry, r.verdict or ""
+            ])
+
 async def main() -> None:
     settings = get_settings()
     content_config = load_content_config()
     provider = OllamaEmbeddingProvider()
     store = ChromaVectorStore()
 
+    args = parse_args()
+    output_path = args.output or OUTPUT_PATH
     rows = load_cases(GOLDEN_CSV)
 
     case_results: list[CaseResult] = []
@@ -144,22 +177,24 @@ async def main() -> None:
     # Report the score, margin, matched entry, and simulated behavior.
     print(f"\n{'Question':<42} {'Category':<30} {'Score':>6} {'Margin':>7} {'Entry':>5}  Finding")
     for case_result in case_results:
-        verdict = classify(
+        case_result.verdict = classify(
             case_result,
             settings.RAG_MIN_SCORE,
             settings.RAG_MIN_SCORE_GAP,
             content_config.standard_fallback,
         )
         # Mark known limitations instead of hiding them.
-        if verdict == "false_positive" and case_result.category in KNOWN_FALSE_POSITIVES:
-            verdict = "false_positive (known limitation)"
-        verdict = verdict or "ok"
+        if case_result.verdict == "false_positive" and case_result.category in KNOWN_FALSE_POSITIVES:
+            case_result.verdict = "false_positive (known limitation)"
+        case_result.verdict = case_result.verdict or "ok"
 
         margin_str = f"{case_result.margin:.3f}" if case_result.margin is not None else "-"
         entry_str = case_result.entry_id if case_result.entry_id is not None else "-"
         print(f"{case_result.question[:40]:<40} "
               f"{case_result.category:<26} "
-              f"{case_result.score:>6.3f} {margin_str:>7} {entry_str:>5}  {verdict}")
+              f"{case_result.score:>6.3f} {margin_str:>7} {entry_str:>5}  {case_result.verdict}")
+
+        write_results_to_csv(case_results, output_path)
 
     # Search thresholds jointly; gaps extend beyond the largest measured value.
     score_candidates = [round(x * 0.05, 2) for x in range(4, 19)]  # 0.20 ... 0.90
