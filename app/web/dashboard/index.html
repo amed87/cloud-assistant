@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot KPI Dashboard</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>🤖 Chatbot KPI Dashboard</h1>
+            <div class="metadata" id="metadata">
+                Laden...
+            </div>
+        </header>
+
+        <!-- Loading State -->
+        <div id="loading" class="loading">
+            ⏳ Lade Metriken aus metrics.json...
+        </div>
+
+        <!-- Error Container -->
+        <div id="error" class="error" style="display: none;"></div>
+
+        <!-- Main Content (hidden until loaded) -->
+        <div id="dashboard-content" style="display: none;">
+
+            <!-- KPI Cards Row -->
+            <section class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-title">Overall Success Rate</div>
+                    <div class="kpi-value success" id="success-rate">--</div>
+                    <div class="kpi-delta positive" id="success-delta">Quality Gate</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">Avg Response Time</div>
+                    <div class="kpi-value" id="response-time">--</div>
+                    <div class="kpi-delta neutral" id="latency-info">P95: <span id="p95-latency">--</span></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">F1 Score</div>
+                    <div class="kpi-value" id="f1-score">--</div>
+                    <div class="kpi-delta positive">Gate Precision: <span id="precision">--</span></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">Health Score</div>
+                    <div class="kpi-value" id="health-score">--</div>
+                    <div class="kpi-delta warning" id="health-status">Composite Metric</div>
+                </div>
+            </section>
+
+            <!-- Charts Row 1 -->
+            <section class="charts-grid">
+                <div class="chart-card full-width">
+                    <div class="chart-header">
+                        <h2 class="chart-title">Erfolgsrate nach Kategorie</h2>
+                        <p class="chart-subtitle">Verteilung der Erfolgsraten über alle Test-Kategorien</p>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Charts Row 2 -->
+            <section class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h2 class="chart-title">Verdict Distribution</h2>
+                        <p class="chart-subtitle">Ergebnisverteilung aller analysierten Fragen</p>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="verdictChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h2 class="chart-title">Latenz-Perzentile</h2>
+                        <p class="chart-subtitle">Antwortzeiten von Minimum bis Maximum</p>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="latencyChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Resources Section -->
+            <section class="resource-section">
+                <h2 class="table-title">Ressourcennutzung während Load-Test</h2>
+                <div style="overflow-x: auto;">
+                    <table id="resourceTable">
+                        <thead>
+                            <tr>
+                                <th>Prozess</th>
+                                <th>Avg CPU (%)</th>
+                                <th>Peak CPU (%)</th>
+                                <th>Avg Mem (MB)</th>
+                                <th>Peak Mem (MB)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Wird dynamisch gefüllt -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            <p>KPI-Dashboard • Generiert am <span id="generated-at">--</span> • Run ID: <span id="run-id">--</span></p>
+            <p>Datum: <span id="current-date">--</span></p>
+        </footer>
+    </div>
+
+    <script src="./dashboard.js"></script>
+</body>
+
+</html>

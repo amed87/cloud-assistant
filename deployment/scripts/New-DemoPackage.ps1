@@ -1,6 +1,7 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
-    [string]$Version = 'demo'
+    [string]$Version = 'demo',
+    [switch]$IncludeKpi
 )
 
 Set-StrictMode -Version Latest
@@ -12,6 +13,18 @@ $TemporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) "$PackageName-$PID"
 $StageDirectory = Join-Path $TemporaryRoot $PackageName
 $DistributionDirectory = Join-Path $RepositoryParent 'dist'
 $ArchivePath = Join-Path $DistributionDirectory "$PackageName.zip"
+
+# ============================================
+# KPI-DATEI DEFINITION (neu!)
+# ============================================
+$KpiMetricsSourceDir = Join-Path $RepositoryParent 'eval\output\'
+$KpiMetricsSource = (Get-ChildItem -Path $KpiMetricsSourceDir -Filter "kpis_*.json" | Sort-Object -Property LastWriteTime -Descending | Select-Object -First 1).FullName
+$KpiMetricsDest = Join-Path $StageDirectory 'app\web\dashboard\metrics.json'
+
+Write-Host "RepositoryRoot: $RepositoryRoot"
+Write-Host "RepositoryParent: $RepositoryParent"
+Write-Host "KPI-Quelle: $KpiMetricsSource"
+Write-Host
 
 if (Test-Path $TemporaryRoot) {
     throw "Temporary staging path already exists: $TemporaryRoot"
@@ -38,6 +51,23 @@ try {
             New-Item -ItemType Directory -Path (Split-Path $Destination -Parent) -Force | Out-Null
             Copy-Item -LiteralPath $_.FullName -Destination $Destination
         }
+
+    # ============================================
+    # KPI-COPY
+    # ============================================
+    if ($IncludeKpi) {
+        if (Test-Path -LiteralPath $KpiMetricsSource) {
+            $KpiDashboardDir = Split-Path -Path $KpiMetricsDest -Parent
+            New-Item -ItemType Directory -Path $KpiDashboardDir -Force | Out-Null
+            Copy-Item -LiteralPath $KpiMetricsSource -Destination $KpiMetricsDest
+            Write-Host "KPI-Daten kopiert: $KpiMetricsSource -> $KpiMetricsDest"
+        }
+        else {
+            Write-Warning "kpi_latest.json nicht gefunden bei $KpiMetricsSource"
+            Write-Warning "Dashboard wird ohne KPI-Daten ausgeliefert."
+            Write-Host "Tipp: Fuehre die Evaluation aus oder verwende -IncludeKpi:`$false"
+        }
+    }
 
     $RootFiles = @(
         'requirements.txt',
@@ -79,23 +109,21 @@ try {
         throw "FAQ_INPUT_FILE does not exist: $FaqSourcePath"
     }
 
-    $FaqRows = @(Import-Csv -LiteralPath $FaqSourcePath -Delimiter ';')
+    $csvContent = Get-Content -LiteralPath $FaqSourcePath -Encoding UTF8 -Raw
+    $FaqRows = @(ConvertFrom-Csv -InputObject $csvContent -Delimiter ';')
     if ($FaqRows.Count -eq 0) {
         throw "FAQ_INPUT_FILE contains no FAQ rows: $FaqSourcePath"
     }
+
     $FaqColumns = @($FaqRows[0].PSObject.Properties.Name)
-    $KeywordColumns = @($FaqColumns | Where-Object { $_ -match '^Schl.sselw.rter$' })
-    if ($KeywordColumns.Count -ne 1) {
-        throw 'FAQ_INPUT_FILE must contain exactly one keyword column.'
-    }
-    $RequiredFaqColumns = @('ID', 'Frage', 'Antwort', 'Themen', 'Fragetyp', $KeywordColumns[0])
+    $RequiredFaqColumns = @('ID', 'Frage', 'Antwort', 'Themen', 'Fragetyp', 'Schlüsselwörter')
     $MissingFaqColumns = @($RequiredFaqColumns | Where-Object { $_ -notin $FaqColumns })
     if ($MissingFaqColumns.Count -gt 0) {
         throw "FAQ_INPUT_FILE is missing required columns: $($MissingFaqColumns -join ', ')"
     }
 
-    $CredentialRows = @($FaqRows | Where-Object { $_.Frage -match '(?i)(w[\s-]?lan|wifi).*passwort' })
-    $DemoFaqRows = @($FaqRows | Where-Object { $_.Frage -notmatch '(?i)(w[\s-]?lan|wifi).*passwort' })
+    $CredentialRows = @($FaqRows | Where-Object { $_.Frage -match '(?i)(w[-\s]?lan|wifi).*passwort' })
+    $DemoFaqRows = @($FaqRows | Where-Object { $_.Frage -notmatch '(?i)(w[-\s]?lan|wifi).*passwort' })
     if ($CredentialRows.Count -gt 0) {
         Write-Host "Excluded $($CredentialRows.Count) FAQ row(s) asking for the actual WLAN password."
     }
@@ -120,6 +148,7 @@ try {
     )
 
     Write-Host "Demo package created: $ArchivePath"
-} finally {
+}
+finally {
     Remove-Item -LiteralPath $TemporaryRoot -Recurse -Force
 }
