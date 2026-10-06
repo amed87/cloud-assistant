@@ -16,10 +16,12 @@ from app.exceptions.handlers import register_exception_handlers
 from app.api.teams import router as teams_router
 from app.api.admin import router as admin_router
 
+# Configure logging and load application settings
 configure_logging()
 settings = get_settings()
 
 
+# Set up the lifespan context manager to handle startup and shutdown events
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     run_measurement_started = False
@@ -34,26 +36,37 @@ async def lifespan(app: FastAPI):
             profiler.stop_run_measurement()
 
 
+# Create the FastAPI application instance with the lifespan context manager
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     lifespan=lifespan,
 )
 
-WEB_DIR = Path(__file__).parent / "web"
-app.mount("/portal-assets", StaticFiles(directory=WEB_DIR), name="portal-assets")
 
+# Integrate static file serving for the portal and dashboard
+WEB_DIR = Path(__file__).parent / "web"
+PORTAL_DIR = WEB_DIR / "portal"
+DASHBOARD_DIR = WEB_DIR / "dashboard"
+
+app.mount("/portal-assets", StaticFiles(directory=PORTAL_DIR), name="portal-assets")
+app.mount("/dashboard-assets", StaticFiles(directory=DASHBOARD_DIR), name="dashboard-assets")
 
 @app.get("/", include_in_schema=False)
 async def portal():
-    return FileResponse(WEB_DIR / "index.html")
+    return FileResponse(PORTAL_DIR / "index.html")
 
+@app.get("/dashboard", include_in_schema=False)
+async def dashboard():
+    return FileResponse(DASHBOARD_DIR / "index.html")
+
+
+# Register middleware and exception handlers
 app.middleware("http")(logging_middleware)
 app.middleware("http")(profiler.profile)
-
 register_exception_handlers(app)
 
+# Include API routers for chat, teams, and admin endpoints
 app.include_router(chat_router)
-
 app.include_router(teams_router)
 app.include_router(admin_router)

@@ -269,8 +269,8 @@ def generate_kpi_report(eval_dir: Path, run_id: str | None = None) -> dict:
     results_files = sorted(eval_dir.glob('results_*.csv'))
     resources_files = sorted(eval_dir.glob('*-resources.csv'))
     
-    if not load_files or not results_files:
-        raise ValueError(f"No evaluation files found in {eval_dir}")
+    if not load_files and not results_files:
+        raise ValueError(f"No evaluation files found in {eval_dir} (need at least load-test-*.csv or results_*.csv)")
     
     latest_load = load_files[-1]
     latest_results = results_files[-1]
@@ -412,7 +412,7 @@ if __name__ == '__main__':
         if not args.quiet:
             print_summary(kpis)
         
-        print(f"✓ KPIs saved to {args.output}")
+        print(f"KPIs saved to {args.output}")
     except Exception as e:
-        print(f"✗ Error: {e}")
+        print(f"Error: {e}")
         exit(1)
