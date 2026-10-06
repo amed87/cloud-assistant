@@ -72,15 +72,23 @@ class ChromaVectorStore(VectorStore):
         self,
         embedding: list[float],
         limit: int = 5,
+        intent: str = None,
     ) -> list[SearchResult]:
 
         try:
-
-            results = await asyncio.to_thread(
-                self.collection.query,
-                query_embeddings=[embedding],
-                n_results=limit,
-            )
+            if intent:
+                results = await asyncio.to_thread(
+                    self.collection.query,
+                    query_embeddings=[embedding],
+                    n_results=limit,
+                    where={"intent": intent},
+                )
+            else:
+                results = await asyncio.to_thread(
+                                self.collection.query,
+                                query_embeddings=[embedding],
+                                n_results=limit,
+                            )
 
             documents = results["documents"][0]
             ids = results["ids"][0]

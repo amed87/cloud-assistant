@@ -8,6 +8,7 @@ from app.embeddings.base import EmbeddingProvider
 from app.vectorstores.base import VectorStore
 from app.vectorstores.models import SearchResult
 from app.answerability.answerability_gate import AnswerabilityGate
+from app.filters.intent_filter import filterIntent
 
 
 logger = logging.getLogger(__name__)
@@ -68,9 +69,12 @@ class RagService:
     ) -> str:
         logger.info("Retrieving top document for question: %s", question)
 
+        intent = filterIntent(question)
+
         documents = await self._retrieve_candidates(
             question,
             limit=2,
+            intent=intent,
         )
 
         decision = self.answerability_gate.evaluate_quick(
@@ -126,10 +130,15 @@ class RagService:
             self, 
             question: str, 
             limit: int,
+            intent: str | None = None,
         ) -> list[SearchResult]:
         embedding = await self.embedding_provider.embed(question)
+
+        if not intent:
+            intent = "general"
 
         return await self.vector_store.search(
             embedding=embedding,
             limit=limit,
+            intent=intent,
         )

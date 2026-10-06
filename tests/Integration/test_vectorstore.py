@@ -24,7 +24,7 @@ async def test_vectorstore_adds_and_finds_document(tmp_path, monkeypatch) -> Non
                 id="test-vectorstore-1",
                 content=content,
                 embedding=embedding,
-                metadata={"source": "test"},
+                metadata={"source": "test", "intent": "general"},
             )
         ]
     )

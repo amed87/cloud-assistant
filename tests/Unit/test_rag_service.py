@@ -18,7 +18,7 @@ class FakeVectorStore:
     def __init__(self, documents: list) -> None:
         self.documents = documents
 
-    async def search(self, embedding, limit: int) -> list:
+    async def search(self, embedding, limit: int, intent: str) -> list:
         return self.documents[:limit]
 
 

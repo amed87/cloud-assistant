@@ -6,6 +6,7 @@ from app.documents.models import FAQDocument
 from app.embeddings.base import EmbeddingProvider
 from app.vectorstores.base import VectorStore
 from app.vectorstores.models import VectorDocument
+from app.filters.intent_filter import filterIntent
 
 
 class FAQImporter(DocumentImporter):
@@ -42,6 +43,8 @@ class FAQImporter(DocumentImporter):
         for entry in faq.entries:
             if entry.id in existing_faq_ids:
                 continue
+            
+            intent = filterIntent(entry.question)
 
             embedding = await self.embedding_provider.embed(
                 entry.question,
@@ -59,6 +62,7 @@ class FAQImporter(DocumentImporter):
                         "subjects": entry.subjects if entry.subjects else None,
                         "question_type": entry.question_type if entry.question_type else None,
                         "keywords": entry.keywords if entry.keywords else None,
+                        "intent": intent,
                     },
                 )
             )

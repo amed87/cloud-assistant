@@ -24,6 +24,7 @@ class VectorStore(ABC):
         self,
         embedding: list[float],
         limit: int = 5,
+        intent: str = "general",
     ) -> list[SearchResult]:
         """
         Liefert die ähnlichsten Dokumente.
