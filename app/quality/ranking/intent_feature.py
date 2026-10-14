@@ -1,10 +1,12 @@
-from app.quality.intent.intent_filter import filterIntent
-from app.vectorstores.models import SearchResult
 from app.config.content_settings import content_config
 from app.config.settings import get_settings
+from app.quality.intent.intent_filter import filterIntent
+from app.quality.ranking.ranking_feature import RankingFeature
+from app.vectorstores.models import SearchResult
 
 
-class IntentFeature:
+class IntentFeature(RankingFeature):
+    name = "intent"
 
     def score(
         self,
@@ -16,19 +18,19 @@ class IntentFeature:
 
         fallback = content_config.fragetyp_fallback
 
-        intent = filterIntent(query)
+        query_intent = filterIntent(query)
 
-        metadata_intent = candidate.metadata.get(
+        candidate_intent = candidate.metadata.get(
             "question_type",
             fallback,
         )
 
-        if metadata_intent == intent:
+        if candidate_intent == query_intent:
             return settings.INTENT_MATCH_BONUS
 
         if (
-            intent != fallback
-            and metadata_intent != fallback
+            query_intent != fallback
+            and candidate_intent != fallback
         ):
             return -settings.INTENT_MISMATCH_PENALTY
 

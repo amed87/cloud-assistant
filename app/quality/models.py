@@ -21,5 +21,5 @@ class AnswerabilityDecision:
 class RetrievalResult:
     """Results of the different steps of the RAG retrieval process."""
     chroma: list[SearchResult]
-    intent_reranker: list[SearchResult]
+    reranker: list[SearchResult]
     gate: AnswerabilityDecision

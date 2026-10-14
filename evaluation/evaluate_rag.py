@@ -299,8 +299,8 @@ async def main() -> None:
 
         # Extract scalars from RetrievalResult (no lists stored)
         best_chroma = retrieval_result.chroma[0] if retrieval_result.chroma else None
-        best_reranker = retrieval_result.intent_reranker[0] if retrieval_result.intent_reranker else None
-        second_reranker = retrieval_result.intent_reranker[1] if len(retrieval_result.intent_reranker) > 1 else None
+        best_reranker = retrieval_result.reranker[0] if retrieval_result.reranker else None
+        second_reranker = retrieval_result.reranker[1] if len(retrieval_result.reranker) > 1 else None
         gate_reranker_doc = get_gate_document(retrieval_result)
         gate_reranker_entry_id = get_gate_entry_id(retrieval_result)
         gate_chroma_entry_id = (chroma_gate.document.id.partition(":")[0] if chroma_gate.document else None)

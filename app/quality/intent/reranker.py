@@ -2,27 +2,28 @@ from app.quality.intent.intent_filter import filterIntent
 from app.vectorstores.models import SearchResult
 from app.config.content_settings import content_config
 from app.config.settings import get_settings
-from app.quality.intent.intent_feature import IntentFeature
+from app.quality.ranking.intent_feature import IntentFeature
+from app.quality.ranking.ranking_feature import RankingFeature
 
-intent_feature = IntentFeature()
-
-def rerank_candidates_by_intent(candidates: list[SearchResult], query: str) -> list[SearchResult]:
+def rerank_candidates(candidates: list[SearchResult], query: str) -> list[SearchResult]:
     """Rerank the candidates based on the intent of the query."""
     settings = get_settings()
     boosted_results = []
-    for candidate in candidates:
-        intent_score = intent_feature.score(
-            query=query,
-            candidate=candidate,
-        )
+    features: list[RankingFeature] = [IntentFeature()]
 
-        boosted_score = (candidate.score + (settings.INTENT_WEIGHT * intent_score))
+    for candidate in candidates:
+        final_score = candidate.score
+
+        for feature in features:
+            final_score += (
+                settings.INTENT_WEIGHT * feature.score(query=query, candidate=candidate)
+                )
 
         boosted_results.append(
             SearchResult(
                 id=candidate.id,
                 content=candidate.content,
-                score=boosted_score,
+                score=final_score,
                 metadata=candidate.metadata,
             )
         )

@@ -8,7 +8,7 @@ from app.embeddings.base import EmbeddingProvider
 from app.vectorstores.base import VectorStore
 from app.vectorstores.models import SearchResult
 from app.quality.answerability.answerability_gate import AnswerabilityGate
-from app.quality.intent.intent_reranker import rerank_candidates_by_intent
+from app.quality.intent.reranker import rerank_candidates
 from app.quality.models import AnswerabilityDecision, RetrievalResult
 
 
@@ -77,7 +77,7 @@ class RagService:
             limit=5,
         )
 
-        reranked = rerank_candidates_by_intent(documents, question)
+        reranked = rerank_candidates(documents, question)
         decision = self.answerability_gate.evaluate_quick(
             question=question,
             documents=reranked,
@@ -94,7 +94,7 @@ class RagService:
         if eval:
             return RetrievalResult(
                 chroma=documents,
-                intent_reranker=reranked,
+                reranker=reranked,
                 gate=decision,
             )
         
