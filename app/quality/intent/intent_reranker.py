@@ -8,6 +8,7 @@ intent_feature = IntentFeature()
 
 def rerank_candidates_by_intent(candidates: list[SearchResult], query: str) -> list[SearchResult]:
     """Rerank the candidates based on the intent of the query."""
+    settings = get_settings()
     boosted_results = []
     for candidate in candidates:
         intent_score = intent_feature.score(
@@ -15,11 +16,13 @@ def rerank_candidates_by_intent(candidates: list[SearchResult], query: str) -> l
             candidate=candidate,
         )
 
+        boosted_score = (candidate.score + (settings.INTENT_WEIGHT * intent_score))
+
         boosted_results.append(
             SearchResult(
                 id=candidate.id,
                 content=candidate.content,
-                score=candidate.score + intent_score,
+                score=boosted_score,
                 metadata=candidate.metadata,
             )
         )

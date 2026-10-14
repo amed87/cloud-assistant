@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     RAG_TOP_K: int = 5
     RAG_MIN_SCORE: float = 0.3
     RAG_MIN_SCORE_GAP: float = 0.1
+
+    INTENT_WEIGHT: float = 1.0
     INTENT_MATCH_BONUS: float = 0.15
     INTENT_MISMATCH_PENALTY: float = 0.1
 
