@@ -7,8 +7,9 @@ from app.config.content_settings import load_content_config
 from app.embeddings.base import EmbeddingProvider
 from app.vectorstores.base import VectorStore
 from app.vectorstores.models import SearchResult
-from app.answerability.answerability_gate import AnswerabilityGate
-from app.filters.intent_filter import filterIntent
+from app.quality.answerability.answerability_gate import AnswerabilityGate
+from app.quality.intent.intent_reranker import rerank_candidates_by_intent
+from app.quality.models import AnswerabilityDecision, RetrievalResult
 
 
 logger = logging.getLogger(__name__)
@@ -66,29 +67,38 @@ class RagService:
     async def quick_retrieve(
             self,
             question: str,
-    ) -> str:
+            eval: bool = False,
+    ) -> str | RetrievalResult:
         logger.info("Retrieving top document for question: %s", question)
-
-        intent = filterIntent(question)
+        answer = self.content_config.standard_fallback
 
         documents = await self._retrieve_candidates(
             question,
-            limit=2,
-            intent=intent,
+            limit=5,
         )
 
+        reranked = rerank_candidates_by_intent(documents, question)
         decision = self.answerability_gate.evaluate_quick(
             question=question,
-            documents=documents,
+            documents=reranked,
         )
 
         if not decision.accepted:
             logger.info(f"No corresponding FAQ-Entry found for the question. \nReason: {decision.reason} \nConfidence score: {decision.confidence}")
-            return self.content_config.standard_fallback
+        else:
+            answer = decision.document.metadata.get("answer")
 
 
         logger.info(f"Top document retrieved with score: {decision.document.score}")
-        return decision.document.metadata.get("answer")
+
+        if eval:
+            return RetrievalResult(
+                chroma=documents,
+                intent_reranker=reranked,
+                gate=decision,
+            )
+        
+        return answer
     
     async def retrieve(
         self,
@@ -130,15 +140,10 @@ class RagService:
             self, 
             question: str, 
             limit: int,
-            intent: str | None = None,
         ) -> list[SearchResult]:
         embedding = await self.embedding_provider.embed(question)
-
-        if not intent:
-            intent = "general"
 
         return await self.vector_store.search(
             embedding=embedding,
             limit=limit,
-            intent=intent,
         )

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from app.answerability.answerability_gate import AnswerabilityGate
+from app.quality.answerability.answerability_gate import AnswerabilityGate
 from app.config.content_settings import load_content_config
 from app.config.settings import get_settings
 from app.documents.faq_importer import FAQImporter

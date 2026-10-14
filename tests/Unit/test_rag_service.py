@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from app.answerability.answerability_gate import AnswerabilityGate
+from app.quality.answerability.answerability_gate import AnswerabilityGate
 from app.services.rag_service import RagService, RagContext
 from app.vectorstores.models import SearchResult
 from app.config.content_settings import load_content_config
@@ -18,7 +18,7 @@ class FakeVectorStore:
     def __init__(self, documents: list) -> None:
         self.documents = documents
 
-    async def search(self, embedding, limit: int, intent: str) -> list:
+    async def search(self, embedding, limit: int) -> list:
         return self.documents[:limit]
 
 

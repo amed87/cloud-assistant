@@ -16,3 +16,10 @@ class AnswerabilityDecision:
     reason: str
     confidence: float
     document: SearchResult | None = None
+
+@dataclass(frozen=True)
+class RetrievalResult:
+    """Results of the different steps of the RAG retrieval process."""
+    chroma: list[SearchResult]
+    intent_reranker: list[SearchResult]
+    gate: AnswerabilityDecision

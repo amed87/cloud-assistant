@@ -1,5 +1,5 @@
 from app.vectorstores.models import SearchResult
-from app.answerability.models import AnswerabilityDecision
+from app.quality.models import AnswerabilityDecision
 
 class AnswerabilityGate:
     def __init__(

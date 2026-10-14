@@ -1,6 +1,6 @@
 import pytest
 
-from app.answerability.answerability_gate import AnswerabilityGate
+from app.quality.answerability.answerability_gate import AnswerabilityGate
 from app.vectorstores.models import SearchResult
 
 
