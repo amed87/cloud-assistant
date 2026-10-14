@@ -3,11 +3,11 @@ from app.config.settings import get_settings
 from app.quality.intent.intent_filter import filterIntent
 from app.quality.ranking.ranking_feature import RankingFeature
 from app.vectorstores.models import SearchResult
+from dataclasses import dataclass
 
 
+@dataclass(slots=True)
 class IntentFeature(RankingFeature):
-    name = "intent"
-
     def score(
         self,
         query: str,

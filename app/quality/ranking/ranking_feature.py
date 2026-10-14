@@ -1,13 +1,13 @@
 from abc import ABC
 from abc import abstractmethod
+from dataclasses import dataclass 
 
 from app.vectorstores.models import SearchResult
 
-
+@dataclass(slots=True)
 class RankingFeature(ABC):
     """Base class for candidate ranking features."""
-
-    name: str
+    weight: float
 
     @abstractmethod
     def score(

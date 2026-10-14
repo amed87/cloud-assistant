@@ -4,20 +4,22 @@ from app.config.content_settings import content_config
 from app.config.settings import get_settings
 from app.quality.ranking.intent_feature import IntentFeature
 from app.quality.ranking.ranking_feature import RankingFeature
+from app.quality.ranking.keyword_feature import KeywordFeature
 
 def rerank_candidates(candidates: list[SearchResult], query: str) -> list[SearchResult]:
     """Rerank the candidates based on the intent of the query."""
     settings = get_settings()
     boosted_results = []
-    features: list[RankingFeature] = [IntentFeature()]
+    features: list[RankingFeature] = [
+        IntentFeature(settings.INTENT_WEIGHT),
+        KeywordFeature(settings.KEYWORD_WEIGHT),
+        ]
 
     for candidate in candidates:
         final_score = candidate.score
 
         for feature in features:
-            final_score += (
-                settings.INTENT_WEIGHT * feature.score(query=query, candidate=candidate)
-                )
+            final_score += feature.weight * feature.score(query=query, candidate=candidate)
 
         boosted_results.append(
             SearchResult(
