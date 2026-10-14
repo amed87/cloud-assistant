@@ -22,10 +22,13 @@ class Settings(BaseSettings):
 
     CHROMA_PATH: str = "../data/chroma"
     CHROMA_COLLECTION: str = "faq-bot"
+    CHROMA_TEMP_PATH: str = "./temp_qa_db"
 
     RAG_TOP_K: int = 5
     RAG_MIN_SCORE: float = 0.3
     RAG_MIN_SCORE_GAP: float = 0.1
+    INTENT_MATCH_BONUS: float = 0.15
+    INTENT_MISMATCH_PENALTY: float = 0.1
 
     ENABLE_PROFILER: bool = True
     PROFILER_SAMPLE_RATE: float = 0.1

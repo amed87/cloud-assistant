@@ -1,8 +1,8 @@
 """Evaluate the RAG FAQ chatbot against the golden dataset.
 
-Runs against ChromaDB and Ollama and reports:
+Runs against the real RagService and reports:
 - Score and answer for each golden case, including cases below the threshold
-- Error classification for each case
+- Error classification for each case at multiple levels (retrieval, reranker, gate, overall)
 - Recommended values for RAG_MIN_SCORE and RAG_MIN_SCORE_GAP
 
 Run with: python -m evaluation.evaluate_rag
@@ -18,33 +18,61 @@ from app.config.content_settings import load_content_config
 from app.config.settings import get_settings
 from app.embeddings.ollama_provider import OllamaEmbeddingProvider
 from app.vectorstores.chroma import ChromaVectorStore
+from app.services.rag_service import RagService
+from app.quality.answerability.answerability_gate import AnswerabilityGate
+from app.quality.models import RetrievalResult, AnswerabilityDecision
 
 GOLDEN_CSV = Path(__file__).resolve().parents[2] / "eval" / "data" / "golden_dataset.csv"
 OUTPUT_PATH = Path(__file__).resolve().parents[2] / "eval" / "output" / f"results_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
 
 # Known, accepted limitations of the current architecture.
-# These cases are correctly classified as false positives because a threshold
-# alone cannot determine whether a question is answerable.
 KNOWN_FALSE_POSITIVES = {"fast_treffer"}
 
 @dataclass
 class CaseResult:
     question: str
     category: str
-    score: float               # 0.0 when no candidate is found.
-    second_score: float | None  # Score of the runner-up, or None if absent.
-    entry_id: str | None       # Stable FAQ ID of the best match.
-    answer: str                # Answer from the matched FAQ entry, or "".
     expected_entry: str
-    error_type: str | None = None  # See the classification in classify().
-    verdict: str | None = None  # "ok" or the classification result.
+    
+    # Retrieval metrics (ChromaDB) - skalare Werte, keine Listen
+    chroma_top_score: float = 0.0
+    chroma_entry_id: str | None = None
+    chroma_margin: float | None = None
+    retrieval_verdict: str | None = None
+    retrieval_hit_top3: bool = False
+    retrieval_hit_top5: bool = False
+    retrieval_hit_top10: bool = False
+    
+    # Reranker metrics (Intent) - skalare Werte, keine Listen
+    reranker_top_score: float = 0.0
+    reranker_entry_id: str | None = None
+    reranker_margin: float | None = None
+    reranker_verdict: str | None = None
+    
+    # Gate metrics (Answerability) - ohne Reranker
+    gate_chroma_accepted: bool = False
+    gate_chroma_reason: str = ""
+    gate_chroma_confidence: float = 0.0
+    gate_chroma_entry_id: str | None = None
+    gate_chroma_verdict: str | None = None
 
-    @property
-    def margin(self) -> float | None:
-        """Return the margin to the runner-up; a small margin is ambiguous."""
-        if self.second_score is None:
-            return None
-        return self.score - self.second_score
+    # Gate metrics (Answerability) - mit Reranker
+    gate_reranker_accepted: bool = False
+    gate_reranker_reason: str = ""
+    gate_reranker_confidence: float = 0.0
+    gate_reranker_entry_id: str | None = None
+    gate_reranker_verdict: str | None = None
+    
+    # Overall result
+    overall_verdict: str | None = None
+    
+    # Legacy compatibility fields
+    score: float = 0.0
+    second_score: float | None = None
+    margin: float | None = None
+    entry_id: str | None = None
+    answer: str = ""
+    verdict: str | None = None
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate RAG chatbot")
@@ -60,171 +88,403 @@ def load_cases(path: Path) -> list[dict]:
     with open(path, "r", encoding="utf-8", newline="") as f:
         return list(csv.DictReader(f))
 
-def classify(
-    case_result: CaseResult,
-    min_score: float,
-    min_score_gap: float,
-    fallback: str,
+def classify_retrieval(case_result: CaseResult, expected_entry: str) -> str | None:
+    """Classify retrieval-level correctness.
+    
+    Returns None if correct.
+    Tracks false positives when no entry is expected but something was retrieved.
+    """
+    expected = expected_entry.strip()
+    
+    if not expected:
+        # No match expected - track false positive if anything was retrieved
+        if case_result.chroma_entry_id:
+            return "false_positive"
+        return None
+    
+    # Match expected
+    if not case_result.chroma_entry_id:
+        return "retrieval_miss"
+    
+    if case_result.chroma_entry_id != expected:
+        return "retrieval_wrong_entry"
+    
+    return None
+
+def classify_reranker(case_result: CaseResult, expected_entry: str) -> str | None:
+    """Classify reranker-level correctness.
+    
+    Returns None if correct.
+    Tracks false positives when no entry is expected but something was reranked.
+    """
+    expected = expected_entry.strip()
+    
+    if not expected:
+        # No match expected - track false positive if anything was reranked
+        if case_result.reranker_entry_id:
+            return "false_positive"
+        return None
+    
+    # Match expected
+    if not case_result.reranker_entry_id:
+        return "reranker_miss"
+    
+    if case_result.reranker_entry_id != expected:
+        return "reranker_wrong_entry"
+    
+    return None
+
+def classify_gate(
+    accepted: bool,
+    entry_id: str | None,
+    expected_entry: str,
 ) -> str | None:
-    """Classify a result; None means it is correct.
-
-    Simulate both answerability thresholds used by quick_retrieve.
+    """Classify gate-level decision based on stored gate result.
+    
+    Uses the ACTUAL gate decision from RetrievalResult (computed with original thresholds).
+    Does NOT simulate new thresholds - that's done in the sweep separately.
     """
-    expected_entry = case_result.expected_entry.strip()
-    ambiguous = (
-        case_result.margin is not None
-        and case_result.margin < min_score_gap
-    )
-    treffer = case_result.score >= min_score and not ambiguous
-
-    if not expected_entry:                              # No match is expected.
-        return None if not treffer else "false_positive"
-
-    if not treffer:                                     # A match is expected but below threshold.
+    expected = expected_entry.strip()
+    
+    if not expected:
+        # No match expected - gate should reject
+        if accepted:
+            return "false_positive"
+        return None
+    
+    # Match expected - gate should accept
+    if not accepted:
         return "fallback_wo_hit_expected"
-    if case_result.entry_id != expected_entry:
+    
+    # Gate accepted - check if correct entry was returned
+    if entry_id and entry_id != expected:
         return "wrong_entry"
-    return None                                         # Content validation may be added later.
+    
+    return None
 
-def sweep_threshold_and_gap(
-    case_results: list[CaseResult],
-    score_candidates: list[float],
-    gap_candidates: list[float],
-) -> list[tuple[float, float, int, int, int]]:
-    """For each threshold pair: (min_score, gap, correct, wrong, false positives).
-
-    Use measured scores to simulate both gate conditions.
-    """
-    results = []
-    for min_score in score_candidates:
-        for min_score_gap in gap_candidates:
-            correct = 0
-            wrong_entries = 0
-            false_positives = 0
-
-            for case_result in case_results:
-                ambiguous = (
-                    case_result.margin is not None
-                    and case_result.margin < min_score_gap
-                )
-                accepted = case_result.score >= min_score and not ambiguous
-                expected_entry = case_result.expected_entry.strip()
-
-                if not accepted:
-                    continue
-                if not expected_entry:
-                    false_positives += 1
-                elif case_result.entry_id == expected_entry:
-                    correct += 1
-                else:
-                    wrong_entries += 1
-
-            results.append((
-                min_score,
-                min_score_gap,
-                correct,
-                wrong_entries,
-                false_positives,
-            ))
-    return results
+def classify_overall(case_result: CaseResult, expected_entry: str) -> str | None:
+    """Classify overall end-to-end correctness."""
+    expected = expected_entry.strip()
+    
+    if not expected:
+        # No match expected
+        if case_result.gate_reranker_accepted:
+            return "false_positive"
+        return None
+    
+    # Match expected
+    if not case_result.gate_reranker_accepted:
+        return "overall_miss"
+    
+    if case_result.gate_reranker_entry_id and case_result.gate_reranker_entry_id != expected:
+        return "wrong_entry"
+    
+    return None
 
 def write_results_to_csv(results: list[CaseResult], path: Path) -> None:
-    """Schreibt alle Ergebnisse in eine CSV-Datei."""
+    """Writes all results to CSV file with extended columns for multi-level evaluation."""
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        # Header
         writer.writerow([
             "question", "category", "score", "second_score",
-            "margin", "entry_id", "answer", "expected_entry", "verdict"
+            "margin", "entry_id", "answer", "expected_entry", "verdict",
+            "retrieval_verdict", "reranker_verdict", "gate_chroma_verdict","gate_reranker_verdict", "overall_verdict",
+            "chroma_top_score", "chroma_entry_id", "chroma_margin",
+            "chroma_top_3", "chroma_top_5", "chroma_top_10",
+            "reranker_top_score", "reranker_entry_id", "reranker_margin",
+            "gate_chroma_confidence", "gate_chroma_accepted", "gate_chroma_reason", "gate_chroma_entry_id",
+            "gate_reranker_confidence", "gate_reranker_accepted", "gate_reranker_reason"
         ])
         
         for r in results:
-            margin = f"{r.margin:.3f}" if r.margin is not None else ""
+            margin_str = f"{r.margin:.3f}" if r.margin is not None else ""
+            chroma_margin_str = f"{r.chroma_margin:.3f}" if r.chroma_margin is not None else ""
+            reranker_margin_str = f"{r.reranker_margin:.3f}" if r.reranker_margin is not None else ""
+            answer_str = (r.answer or "").replace("\n", " ").replace(",", ";")[:200]
+            
             writer.writerow([
-                r.question, r.category, f"{r.score:.3f}",
+                r.question,
+                r.category,
+                f"{r.score:.3f}",
                 f"{r.second_score:.3f}" if r.second_score is not None else "",
-                margin, r.entry_id or "", r.answer, r.expected_entry, r.verdict or ""
+                margin_str,
+                r.entry_id or "",
+                answer_str,
+                r.expected_entry,
+
+                r.verdict or "",
+                r.retrieval_verdict or "",
+                r.reranker_verdict or "",
+                r.gate_chroma_verdict or "",
+                r.gate_reranker_verdict or "",
+                r.overall_verdict or "",
+
+                f"{r.chroma_top_score:.3f}",
+                r.chroma_entry_id or "",
+                chroma_margin_str,
+                r.retrieval_hit_top3,
+                r.retrieval_hit_top5,
+                r.retrieval_hit_top10,
+
+                f"{r.reranker_top_score:.3f}",
+                r.reranker_entry_id or "",
+                reranker_margin_str,
+
+                f"{r.gate_chroma_confidence:.3f}",
+                r.gate_chroma_accepted,
+                r.gate_chroma_reason,
+                r.gate_chroma_entry_id or "",
+
+                f"{r.gate_reranker_confidence:.3f}",
+                r.gate_reranker_accepted,
+                r.gate_reranker_reason,
             ])
+
+def get_gate_document(result: RetrievalResult):
+    return result.gate.document 
+
+def get_gate_entry_id(result: RetrievalResult):
+    return result.gate.document.id.partition(":")[0] if result.gate.document else None
+
 
 async def main() -> None:
     settings = get_settings()
     content_config = load_content_config()
-    provider = OllamaEmbeddingProvider()
-    store = ChromaVectorStore()
+    
+    # Initialize components for RagService
+    embedding_provider = OllamaEmbeddingProvider()
+    vector_store = ChromaVectorStore()
+    
+    # Initialize AnswerabilityGate with current settings
+    answerability_gate = AnswerabilityGate(
+        min_score=settings.RAG_MIN_SCORE,
+        min_score_gap=settings.RAG_MIN_SCORE_GAP,
+    )
+    
+    # Create RagService instance
+    rag_service = RagService(
+        embedding_provider=embedding_provider,
+        vector_store=vector_store,
+        answerability_gate=answerability_gate,
+    )
 
     args = parse_args()
     output_path = args.output or OUTPUT_PATH
     rows = load_cases(GOLDEN_CSV)
 
+    # First pass: Run all retrievals once and collect results
     case_results: list[CaseResult] = []
     for row in rows:
-        question = row["frage"]          
-        embedding = await provider.embed(question)
-        documents = await store.search(embedding=embedding, limit=2)
+        question = row["frage"]
+        expected_entry = row["erwartete_entry_id"].strip()
+        
+        # Use RagService.quick_retrieve with eval=True to get full RetrievalResult
+        retrieval_result: RetrievalResult = await rag_service.quick_retrieve(
+            question=question,
+            eval=True,
+        )
+        chroma_entry_ids = [
+            candidate.id.partition(":")[0]
+            for candidate in retrieval_result.chroma
+        ]
 
-        best = documents[0] if documents else None
-        second = documents[1] if len(documents) > 1 else None
-        case_results.append(CaseResult(
+        # Use the gate directly on the chroma retrieval results without reranker
+        chroma_gate = AnswerabilityGate(
+            min_score=settings.RAG_MIN_SCORE,
+            min_score_gap=settings.RAG_MIN_SCORE_GAP,
+        ).evaluate_quick(
+            question,
+            retrieval_result.chroma,
+        )
+
+        # Extract scalars from RetrievalResult (no lists stored)
+        best_chroma = retrieval_result.chroma[0] if retrieval_result.chroma else None
+        best_reranker = retrieval_result.intent_reranker[0] if retrieval_result.intent_reranker else None
+        second_reranker = retrieval_result.intent_reranker[1] if len(retrieval_result.intent_reranker) > 1 else None
+        gate_reranker_doc = get_gate_document(retrieval_result)
+        gate_reranker_entry_id = get_gate_entry_id(retrieval_result)
+        gate_chroma_entry_id = (chroma_gate.document.id.partition(":")[0] if chroma_gate.document else None)
+        
+        case_result = CaseResult(
             question=question,
             category=row["kategorie"],
-            score=best.score if best else 0.0,
-            second_score=second.score if second else None,
-            entry_id=best.id.partition(":")[0] if best else None,
-            answer=(best.metadata.get("answer") or "").strip() if best else "",
-            expected_entry=row["erwartete_entry_id"].strip(),
-        ))
+            expected_entry=expected_entry,
+            
+            # Chroma retrieval - scalars only
+            chroma_top_score=best_chroma.score if best_chroma else 0.0,
+            chroma_entry_id=best_chroma.id.partition(":")[0] if best_chroma else None,
+            chroma_margin=(
+                (best_chroma.score - retrieval_result.chroma[1].score)
+                if best_chroma and len(retrieval_result.chroma) > 1 else None
+            ),
+            retrieval_hit_top3=(
+                expected_entry in chroma_entry_ids[:3]
+                if expected_entry else False
+            ),
 
-    # Report the score, margin, matched entry, and simulated behavior.
-    print(f"\n{'Question':<42} {'Category':<30} {'Score':>6} {'Margin':>7} {'Entry':>5}  Finding")
-    for case_result in case_results:
-        case_result.verdict = classify(
-            case_result,
-            settings.RAG_MIN_SCORE,
-            settings.RAG_MIN_SCORE_GAP,
-            content_config.standard_fallback,
+            retrieval_hit_top5=(
+                expected_entry in chroma_entry_ids[:5]
+                if expected_entry else False
+            ),
+
+            retrieval_hit_top10=(
+                expected_entry in chroma_entry_ids[:10]
+                if expected_entry else False
+            ),
+            
+            # Reranker - scalars only
+            reranker_top_score=best_reranker.score if best_reranker else 0.0,
+            reranker_entry_id=best_reranker.id.partition(":")[0] if best_reranker else None,
+            reranker_margin=(
+                (best_reranker.score - second_reranker.score)
+                if best_reranker and second_reranker else None
+            ),
+            
+            # Gate without reranker - scalars only
+            gate_chroma_accepted=chroma_gate.accepted,
+            gate_chroma_reason=chroma_gate.reason,
+            gate_chroma_confidence=chroma_gate.confidence,
+            gate_chroma_entry_id=gate_chroma_entry_id,
+
+            # Gate with reranker - scalars only
+            gate_reranker_accepted=retrieval_result.gate.accepted,
+            gate_reranker_reason=retrieval_result.gate.reason,
+            gate_reranker_confidence=retrieval_result.gate.confidence,
+            gate_reranker_entry_id=gate_reranker_entry_id,
+            
+            # Overall
+            score=retrieval_result.gate.confidence,
+            second_score=second_reranker.score if second_reranker else None,
+            entry_id=gate_reranker_entry_id,
+            answer=(gate_reranker_doc.metadata.get("answer") if gate_reranker_doc else "") or "",
         )
-        # Mark known limitations instead of hiding them.
-        if case_result.verdict == "false_positive" and case_result.category in KNOWN_FALSE_POSITIVES:
-            case_result.verdict = "false_positive (known limitation)"
-        case_result.verdict = case_result.verdict or "ok"
+        
+        # Store margin for overall field
+        case_result.margin = case_result.score - case_result.second_score if case_result.second_score else None
+        
+        # Classify each level (ORIGINAL thresholds)
+        case_result.retrieval_verdict = classify_retrieval(case_result, expected_entry) or "ok"
+        case_result.reranker_verdict = classify_reranker(case_result, expected_entry) or "ok"
+        case_result.gate_reranker_verdict = classify_gate(
+            case_result.gate_reranker_accepted, case_result.gate_reranker_entry_id, expected_entry) or "ok"
+        case_result.gate_chroma_verdict = classify_gate(
+                    case_result.gate_chroma_accepted, case_result.gate_chroma_entry_id, expected_entry) or "ok"
+        
+        # Handle known limitations
+        if case_result.gate_reranker_verdict == "false_positive" and row.get("kategorie") in KNOWN_FALSE_POSITIVES:
+            case_result.gate_reranker_verdict = "false_positive (known limitation)"
+        
+        case_result.overall_verdict = classify_overall(case_result, expected_entry) or "ok"
+        case_result.verdict = case_result.overall_verdict
+        
+        case_results.append(case_result)
 
-        margin_str = f"{case_result.margin:.3f}" if case_result.margin is not None else "-"
-        entry_str = case_result.entry_id if case_result.entry_id is not None else "-"
-        print(f"{case_result.question[:40]:<40} "
-              f"{case_result.category:<26} "
-              f"{case_result.score:>6.3f} {margin_str:>7} {entry_str:>5}  {case_result.verdict}")
+    # Print detailed results table
+    print(f"\n{'Question':<35} {'Category':<20} {'Retrieval':>10} {'Reranker':>10} {'Gate':>10}  Overall")
+    print("-" * 110)
+    for cr in case_results:
+        print(f"{cr.question[:33]:<35} "
+              f"{cr.category[:18]:<20} "
+              f"{cr.retrieval_verdict[:8]:>10} {cr.reranker_verdict[:8]:>10} "
+              f"{cr.gate_reranker_verdict[:8]:>10}  {cr.overall_verdict[:10]}")
 
-        write_results_to_csv(case_results, output_path)
+    # Write full results to CSV
+    write_results_to_csv(case_results, output_path)
+    print(f"\nDetailed results written to: {output_path}")
 
-    # Search thresholds jointly; gaps extend beyond the largest measured value.
-    score_candidates = [round(x * 0.05, 2) for x in range(4, 19)]  # 0.20 ... 0.90
-    max_margin = max(
-        (case_result.margin or 0.0 for case_result in case_results),
-        default=0.0,
-    )
-    gap_candidates = [
-        round(index * 0.01, 2)
-        for index in range(int(max(0.0, max_margin) * 100) + 2)
+    # Summary statistics
+    total_cases = len(case_results)
+    expected_with_match = sum(1 for c in case_results if c.expected_entry.strip())
+    expected_no_match = total_cases - expected_with_match
+    
+    retrieval_hits = sum(1 for c in case_results if c.retrieval_verdict == "ok")
+    reranker_hits = sum(1 for c in case_results if c.reranker_verdict == "ok")
+    gate_chroma_hits = sum(1 for c in case_results if c.gate_chroma_verdict == "ok")
+    gate_reranker_hits = sum(1 for c in case_results if c.gate_reranker_verdict == "ok")
+    overall_hits = sum(1 for c in case_results if c.overall_verdict == "ok")
+    answerable_cases = [
+        c
+        for c in case_results
+        if c.expected_entry.strip()
     ]
-    swept = sweep_threshold_and_gap(
-        case_results,
-        score_candidates,
-        gap_candidates,
+    answerable_count = len(answerable_cases)
+    top3_hits = sum(
+        1
+        for c in answerable_cases
+        if c.retrieval_hit_top3
     )
-    best = max(
-        swept,
-        key=lambda result: (
-            result[2],
-            -result[3],
-            -result[4],
-            -result[0],
-            -result[1],
-        ),
+    top5_hits = sum(
+        1
+        for c in answerable_cases
+        if c.retrieval_hit_top5
     )
-    print(f"\nRecommended thresholds: RAG_MIN_SCORE={best[0]:.2f}, "
-          f"RAG_MIN_SCORE_GAP={best[1]:.2f} "
-          f"(correct hits: {best[2]}, wrong entries: {best[3]}, "
-          f"false positives: {best[4]})")
+    top10_hits = sum(
+        1
+        for c in answerable_cases
+        if c.retrieval_hit_top10
+    )
+
+    print(f"\n{'='*70}")
+    print("SUMMARY BY EVALUATION LEVEL")
+    print(f"{'='*70}")
+    print(f"Total test cases: {total_cases}")
+    print(f"Cases expecting match: {expected_with_match}")
+    print(f"Cases expecting no match: {expected_no_match}\n")
+    
+    print(f"{'Level':<20} {'Hits':<10} {'Rate':<10}")
+    print("-" * 40)
+    print(f"{'Retrieval (Chroma)':<20} {retrieval_hits:<10} {retrieval_hits/total_cases:.2%}")
+    print(f"{'Reranker (Intent)':<20} {reranker_hits:<10} {reranker_hits/total_cases:.2%}")
+    print(f"{'Gate (Chroma)':<20} {gate_chroma_hits:<10} {gate_chroma_hits/total_cases:.2%}")
+    print(f"{'Gate (Reranker)':<20} {gate_reranker_hits:<10} {gate_reranker_hits/total_cases:.2%}")
+    print(f"{'Overall (End-to-End)':<20} {overall_hits:<10} {overall_hits/total_cases:.2%}")
+
+
+    print(f"\nRETRIEVAL COVERAGE")
+    print("-" * 40)
+    print(
+        f"Top-3:  "
+        f"{top3_hits:>3}"
+        f" ({top3_hits/answerable_count:.2%})"
+    )
+    print(
+        f"Top-5:  "
+        f"{top5_hits:>3}"
+        f" ({top5_hits/answerable_count:.2%})"
+    )
+    print(
+        f"Top-10: "
+        f"{top10_hits:>3}"
+        f" ({top10_hits/answerable_count:.2%})"
+    )
+    print(f"\n{'='*80}")
+    print("RERANKER ANALYSIS")
+    print("=" * 80)
+
+    for cr in case_results:
+
+        if cr.reranker_verdict == "ok":
+            continue
+
+        print(
+            f"\nQ: {cr.question}"
+        )
+
+        print(
+            f"Expected: {cr.expected_entry}"
+        )
+
+        print(
+            f"Chroma:   {cr.chroma_entry_id}"
+        )
+
+        print(
+            f"Reranker: {cr.reranker_entry_id}"
+        )
+
+        print(
+            f"Verdict:  {cr.reranker_verdict}"
+        )
 
 if __name__ == "__main__":
     asyncio.run(main())

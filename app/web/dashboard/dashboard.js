@@ -21,7 +21,7 @@ function transformData(metrics) {
       filesAnalyzed: metrics.files_analyzed
     },
     kpis: {
-      successRate: (metrics.quality.overall_success_rate * 100).toFixed(1),
+      accuracy: (metrics.quality.accuracy * 100).toFixed(1),
       avgResponseTime: metrics.latency.avg_response_time_ms.toFixed(1),
       medianResponseTime: metrics.latency.median_response_time_ms.toFixed(1),
       p95ResponseTime: metrics.latency.p95_response_time_ms.toFixed(1),
@@ -95,8 +95,8 @@ function updateMetadata(meta) {
 function updateKPIS(kpis) {
   // Success Rate
   const srEl = document.getElementById('success-rate');
-  srEl.textContent = `${kpis.successRate}%`;
-  srEl.className = 'kpi-value ' + (kpis.successRate >= 80 ? 'success' : 'warning');
+  srEl.textContent = `${kpis.accuracy}%`;
+  srEl.className = 'kpi-value ' + (kpis.accuracy >= 80 ? 'success' : 'warning');
 
   // Latency
   document.getElementById('response-time').textContent = `${kpis.avgResponseTime} ms`;

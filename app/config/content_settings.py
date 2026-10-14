@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+import re
 from app.config.settings import get_settings
 
 import yaml
@@ -8,6 +9,8 @@ from pydantic import BaseModel
 class ContentConfig(BaseModel):
     standard_fallback: str = "Keine relevanten Informationen gefunden."
     no_answer_fallback: str = "Keine Antwort gefunden."
+    fragetyp_filter: dict[str, re.Pattern] = {}
+    fragetyp_fallback: str = "Generell"
 
 @lru_cache
 def load_content_config(path: str = get_settings().CONTENT_CONFIG_FILE) -> ContentConfig:
@@ -19,3 +22,5 @@ def load_content_config(path: str = get_settings().CONTENT_CONFIG_FILE) -> Conte
         )
     data = yaml.safe_load(file.read_text(encoding="utf-8")) or {}
     return ContentConfig(**data)
+
+content_config = load_content_config()

@@ -16,7 +16,7 @@ from app.vectorstores.chroma import (
     ChromaVectorStore,
 )
 
-from app.answerability.answerability_gate import (
+from app.quality.answerability.answerability_gate import (
     AnswerabilityGate,
     )
 

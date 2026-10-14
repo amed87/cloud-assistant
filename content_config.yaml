@@ -2,5 +2,19 @@
 # Die Texte in Anführungszeichen erscheinen im Chatbot, wenn keine
 # passende Antwort gefunden wurde bzw. das Antwort-Feld leer ist.
 
-standard_fallback: "Keine relevanten Informationen gefunden."
-keine_antwort: "Keine Antwort gefunden."
+standard_fallback: 'Keine relevanten Informationen gefunden.'
+keine_antwort: 'Keine Antwort gefunden.'
+
+# Die folgenden Filter werden verwendet, um die Absicht der Benutzeranfrage zu bestimmen. 
+# Dazu werden Reguläre Ausdrücke (Regex) verwendet, die bestimmte Schlüsselwörter oder Phrasen 
+# in der Anfrage erkennen. Die Reihenfolge der Filter ist wichtig, da sie in der Reihenfolge abgearbeitet werden. 
+fragetyp_filter:
+  Definition: '\b(was (ist|sind|heißt|bedeutet)\b|\bwas heißt\b)'
+  Zuständigkeit: '\b(wer\b|\bwen\b|\bzuständig\b|\bverantwortlich\b|\baufgaben übernimmt\b|\bwelches (büro|amt|team)\b)'
+  Zeit: '\b(wann\b|\bwie lange\b|\böffnungszeiten\b|\bbeginnt\b|\bendet\b|\bfrist\b|\btermin\b|\buhrzeit\b|\bpause\b|\bschließzeiten?)\b'
+  Menge: '\b(wieviel(en)?\b|\bwieviele?\b|\bwie viel\b|\bwie viele\b|\bwie oft\b|\banzahl\b|\bkapazität\b|\blimit\b|\bhäufigkeit)\b'
+  Ort: '\b(wo\b|\bwohin\b|\bwoher\b|\bspeicherort\b|\bpfad\b|\bordner\b|\bverzeichnis\b|\babgelegt\b|\bbefinden sich\b|\bstandort\b|\braum\b)'
+  Info: '\b(telefon\b|\bdurchwahl\b|\bemail\b|\badresse\b|\bnummer\b|\bwie (lautet|ist)\b)'
+  Problem: '\b(fehler\b|\berror\b|\bproblem\b|\bfunktioniert nicht\b|\bgeht nicht\b|\b(?:kann\s+(?:ich\s+|mir\s+|du\s+)?nicht|nicht\s+kann)\b|\bnicht\s+einloggen\b|\bgsperrt\b|\bstörung\b)'
+  Prozess: '\b(wie\b|\bum\b|\bbeantrage\b|\babgeben\b|\banleitung\b|\bschritt\b|\bausfüllen\b|\baufrufen\b)'
+fragetyp_fallback: 'Generell'
