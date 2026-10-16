@@ -1,10 +1,11 @@
 from app.quality.ranking.ranking_feature import RankingFeature
 from app.vectorstores.models import SearchResult
-from app.config.settings import get_settings
 from dataclasses import dataclass
 
 @dataclass(slots=True)
 class KeywordFeature(RankingFeature):
+    normalization: float = 5.0
+
     def score(
         self,
         query: str,
@@ -29,6 +30,6 @@ class KeywordFeature(RankingFeature):
                 matches += 1
 
         return min(
-            matches / 5,
+            matches / self.normalization,
             1.0,
         )

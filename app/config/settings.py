@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     INTENT_MATCH_BONUS: float = 0.15
     INTENT_MISMATCH_PENALTY: float = 0.1
     KEYWORD_WEIGHT: float = 0.0
+    KEYWORD_MATCH_NORMALIZATION: float = 5.0
 
     ENABLE_PROFILER: bool = True
     PROFILER_SAMPLE_RATE: float = 0.1

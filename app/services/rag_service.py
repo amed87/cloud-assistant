@@ -8,7 +8,7 @@ from app.embeddings.base import EmbeddingProvider
 from app.vectorstores.base import VectorStore
 from app.vectorstores.models import SearchResult
 from app.quality.answerability.answerability_gate import AnswerabilityGate
-from app.quality.intent.reranker import rerank_candidates
+from app.quality.ranking.reranker import Reranker
 from app.quality.models import AnswerabilityDecision, RetrievalResult
 
 
@@ -50,12 +50,14 @@ class RagService:
         self,
         embedding_provider: EmbeddingProvider,
         vector_store: VectorStore,
+        reranker: Reranker,
         answerability_gate: AnswerabilityGate | None,
     ):
         settings = get_settings()
 
         self.embedding_provider = embedding_provider
         self.vector_store = vector_store
+        self.reranker = reranker
         self.answerability_gate = answerability_gate
         self.content_config = load_content_config(
             path=settings.CONTENT_CONFIG_FILE
@@ -77,7 +79,7 @@ class RagService:
             limit=5,
         )
 
-        reranked = rerank_candidates(documents, question)
+        reranked = self.reranker.rerank(documents, question)
         decision = self.answerability_gate.evaluate_quick(
             question=question,
             documents=reranked,

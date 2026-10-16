@@ -6,7 +6,7 @@ from app.documents.models import FAQDocument
 from app.embeddings.base import EmbeddingProvider
 from app.vectorstores.base import VectorStore
 from app.vectorstores.models import VectorDocument
-from app.quality.intent.intent_filter import filterIntent
+from app.quality.filters.intent_filter import filterIntent
 
 
 class FAQImporter(DocumentImporter):
