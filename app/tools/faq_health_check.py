@@ -17,7 +17,7 @@ from app.models.faq_health import (
     LowMarginQuery,
     EmbeddingHealthReport,
 )
-from app.quality.intent.intent_reranker import rerank_candidates_by_intent
+from app.quality.ranking.reranker import rerank_candidates_by_intent
 from app.vectorstores.base import VectorStore
 from app.vectorstores.temp_chroma import TempChromaStore
 

@@ -21,6 +21,9 @@ from app.vectorstores.chroma import ChromaVectorStore
 from app.services.rag_service import RagService
 from app.quality.answerability.answerability_gate import AnswerabilityGate
 from app.quality.models import RetrievalResult, AnswerabilityDecision
+from app.quality.ranking.reranker import Reranker
+from app.quality.ranking.intent_feature import IntentFeature
+from app.quality.ranking.keyword_feature import KeywordFeature
 
 GOLDEN_CSV = Path(__file__).resolve().parents[2] / "eval" / "data" / "golden_dataset.csv"
 OUTPUT_PATH = Path(__file__).resolve().parents[2] / "eval" / "output" / f"results_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
@@ -254,6 +257,20 @@ async def main() -> None:
     # Initialize components for RagService
     embedding_provider = OllamaEmbeddingProvider()
     vector_store = ChromaVectorStore()
+    reranker_features = [        
+        IntentFeature(
+            weight=settings.INTENT_WEIGHT, 
+            bonus=settings.INTENT_MATCH_BONUS,
+            penalty=settings.INTENT_MISMATCH_PENALTY,
+            fallback=content_config.fragetyp_fallback,
+            ),
+        KeywordFeature(
+            weight=settings.KEYWORD_WEIGHT,
+            normalization=settings.KEYWORD_MATCH_NORMALIZATION,
+        )
+    ] 
+    reranker = Reranker(features=reranker_features)
+    
     
     # Initialize AnswerabilityGate with current settings
     answerability_gate = AnswerabilityGate(
@@ -265,6 +282,7 @@ async def main() -> None:
     rag_service = RagService(
         embedding_provider=embedding_provider,
         vector_store=vector_store,
+        reranker=reranker,
         answerability_gate=answerability_gate,
     )
 

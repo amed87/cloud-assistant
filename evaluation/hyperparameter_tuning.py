@@ -10,14 +10,15 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from app.vectorstores.models import SearchResult
-from app.config.content_settings import load_content_config
 from app.config.settings import get_settings
 from app.embeddings.ollama_provider import OllamaEmbeddingProvider
 from app.vectorstores.chroma import ChromaVectorStore
 from app.services.rag_service import RagService
 from app.quality.answerability.answerability_gate import AnswerabilityGate
 from app.quality.models import AnswerabilityDecision
-from app.quality.intent.intent_filter import filterIntent
+from app.quality.ranking.reranker import Reranker
+from app.quality.ranking.intent_feature import IntentFeature
+from app.quality.ranking.keyword_feature import KeywordFeature
 
 from evaluation.evaluate_rag import (
     load_cases,
@@ -29,6 +30,10 @@ from evaluation.evaluate_rag import (
 class SweepResult:
     match_bonus: float
     mismatch_penalty: float
+    intent_weight: float
+
+    keyword_weight: float
+    keyword_normalization: float
 
     min_score: float
     min_score_gap: float
@@ -91,88 +96,142 @@ def f05(
     )
 
 
+def create_reranker(
+    intent_weight: float = 1.0,
+    intent_match_bonus: float = 0.15,
+    intent_mismatch_penalty: float = 0.1,
+    keyword_weight: float = 0.0,
+    keyword_normalization: float = 5,
+) -> Reranker:
 
-def detect_intent(text: str) -> str:
-    return filterIntent(text)
-
-
-def rerank_candidates(
-    candidates: Sequence[SearchResult],
-    query: str,
-    match_bonus: float,
-    mismatch_penalty: float,
-) -> list[SearchResult]:
-    fallback = load_content_config().fragetyp_fallback
-
-    query_intent = detect_intent(query)
-
-    reranked: list[SearchResult] = []
-
-    for candidate in candidates:
-
-        candidate_intent = candidate.metadata.get(
-            "question_type",
-            fallback,
-        )
-
-        score = candidate.score
-
-        if candidate_intent == query_intent:
-            score += match_bonus
-
-        elif (
-            query_intent != fallback
-            and candidate_intent != fallback
-        ):
-            score -= mismatch_penalty
-
-        reranked.append(
-            SearchResult(
-                id=candidate.id,
-                content=candidate.content,
-                score=score,
-                metadata=candidate.metadata,
-            )
-        )
-
-    reranked.sort(
-        key=lambda x: x.score,
-        reverse=True,
+    return Reranker(
+        features=[
+            IntentFeature(
+                weight=intent_weight,
+                bonus=intent_match_bonus,
+                penalty=intent_mismatch_penalty,
+            ),
+            KeywordFeature(
+                weight=keyword_weight,
+                normalization=keyword_normalization,
+            ),
+        ]
     )
 
-    return reranked
 
-
-async def main() -> None:
-
-    settings = get_settings()
-
-    embedding_provider = OllamaEmbeddingProvider()
-    vector_store = ChromaVectorStore()
-
-    answerability_gate = AnswerabilityGate(
-        min_score=settings.RAG_MIN_SCORE,
-        min_score_gap=settings.RAG_MIN_SCORE_GAP,
+def run_sweep(
+    cached_results: list[CachedCase],
+    match_bonus_candidates: list[float],
+    mismatch_penalty_candidates: list[float],
+    score_candidates: list[float],
+    gap_candidates: list[float],
+    keyword_weight_candidates: list[float],
+    intent_weight_candidates: list[float],
+    keyword_normalization_candidates: list[int],
+) -> list[SweepResult]:
+    results: list[SweepResult] = []
+    total_combinations = (
+        len(match_bonus_candidates)
+        * len(mismatch_penalty_candidates)
+        * len(score_candidates)
+        * len(gap_candidates)
+        * len(intent_weight_candidates)
+        * len(keyword_weight_candidates)
+        * len(keyword_normalization_candidates)
     )
+    current_combination = 0
 
-    rag_service = RagService(
-        embedding_provider=embedding_provider,
-        vector_store=vector_store,
-        answerability_gate=answerability_gate,
-    )
+    for match_bonus in match_bonus_candidates:
+        for mismatch_penalty in mismatch_penalty_candidates:
+            for intent_weight in intent_weight_candidates:
+                for keyword_weight in keyword_weight_candidates:                   
+                    for keyword_normalization in keyword_normalization_candidates:
+                        for min_score in score_candidates:
+                            for min_gap in gap_candidates:                            
+                                current_combination += 1
 
-    rows = load_cases(GOLDEN_CSV)
+                                if current_combination % 10 == 0:
+                                    pct = current_combination / total_combinations * 100
 
+                                    print(
+                                        f"\rProgress: "
+                                        f"{current_combination:,}/{total_combinations:,} "
+                                        f"({pct:5.1f}%)",
+                                        end="",
+                                        flush=True,
+                                    )
+
+                                sweep = SweepResult(
+                                    match_bonus=match_bonus,
+                                    mismatch_penalty=mismatch_penalty,
+                                    intent_weight=intent_weight,
+                                    keyword_weight=keyword_weight,
+                                    keyword_normalization=keyword_normalization,
+                                    min_score=min_score,
+                                    min_score_gap=min_gap,
+                                )
+
+                                reranker = create_reranker(
+                                    intent_weight=intent_weight,
+                                    intent_match_bonus=match_bonus,
+                                    intent_mismatch_penalty=mismatch_penalty,
+                                    keyword_weight=keyword_weight,
+                                    keyword_normalization=keyword_normalization,
+                                )
+
+                                gate = AnswerabilityGate(
+                                    min_score=min_score,
+                                    min_score_gap=min_gap,
+                                )
+
+                                for case in cached_results:
+                                    reranked: list[SearchResult] = reranker.rerank(candidates=case.chroma_results, query=case.question)
+
+                                    decision: AnswerabilityDecision = (
+                                        gate.evaluate_quick(
+                                            case.question,
+                                            reranked,
+                                        )
+                                    )
+
+                                    predicted = None
+
+                                    if decision.document:
+                                        predicted = (
+                                            decision.document.id
+                                            .partition(":")[0]
+                                        )
+
+                                    if not case.expected_entry:
+
+                                        if decision.accepted:
+                                            sweep.fp += 1
+
+                                        continue
+
+                                    if not decision.accepted:
+                                        sweep.fn += 1
+
+                                    elif predicted == case.expected_entry:
+                                        sweep.tp += 1
+
+                                    else:
+                                        sweep.wrong += 1
+
+                                results.append(sweep)
+    return results
+
+
+async def retrieve_results(service: RagService, rows: list[dict]) -> list[CachedCase]:
     cached_results: list[CachedCase] = []
 
     print("Loading retrieval results...")
 
     for row in rows:
-
         question = row["frage"]
         expected = row["erwartete_entry_id"].strip()
 
-        retrieval_result = await rag_service.quick_retrieve(
+        retrieval_result = await service.quick_retrieve(
             question,
             eval=True,
         )
@@ -188,117 +247,102 @@ async def main() -> None:
     print(
         f"Loaded {len(cached_results)} cases."
     )
+    return cached_results
 
-    results: list[SweepResult] = []
 
-    match_bonus_candidates = [
-        0.00,
-        0.05,
-        0.10,
-        0.15,
-        0.20,
-    ]
-
-    mismatch_penalty_candidates = [
-        0.00,
-        0.02,
-        0.05,
-        0.10,
-    ]
-
-    score_candidates = [
-        round(x * 0.05, 2)
-        for x in range(4, 19)
-    ]
-
-    gap_candidates = [
-        round(x * 0.01, 2)
-        for x in range(0, 31)
-    ]
-
-    total_combinations = (
-        len(match_bonus_candidates)
-        * len(mismatch_penalty_candidates)
-        * len(score_candidates)
-        * len(gap_candidates)
+def create_rag_service() -> RagService:
+    settings = get_settings()
+    
+    embedding_provider = OllamaEmbeddingProvider()
+    vector_store = ChromaVectorStore()
+    reranker = create_reranker(
+        intent_weight=settings.INTENT_WEIGHT,
+        intent_match_bonus=settings.INTENT_MATCH_BONUS,
+        intent_mismatch_penalty=settings.INTENT_MISMATCH_PENALTY,
+        keyword_weight=settings.KEYWORD_WEIGHT,
+        keyword_normalization=settings.KEYWORD_MATCH_NORMALIZATION,
     )
 
-    current_combination = 0
+    answerability_gate = AnswerabilityGate(
+        min_score=settings.RAG_MIN_SCORE,
+        min_score_gap=settings.RAG_MIN_SCORE_GAP,
+    )
 
-    for match_bonus in match_bonus_candidates:
+    rag_service = RagService(
+        embedding_provider=embedding_provider,
+        vector_store=vector_store,
+        reranker=reranker,
+        answerability_gate=answerability_gate,
+    )
 
-        for mismatch_penalty in mismatch_penalty_candidates:
+    return rag_service
 
-            for min_score in score_candidates:
 
-                for min_gap in gap_candidates:
-                    current_combination += 1
+def print_results(ranked: list[SweepResult]):    
+    print("")
+    print("\nTop 20 configurations")
+    print("=" * 80)
 
-                    if current_combination % 10 == 0:
-                        pct = current_combination / total_combinations * 100
+    for r in ranked[:20]:
+        metric = f05(
+            r.tp,
+            r.fp,
+            r.fn,
+            r.wrong,
+        )
 
-                        print(
-                            f"\rProgress: "
-                            f"{current_combination:,}/{total_combinations:,} "
-                            f"({pct:5.1f}%)",
-                            end="",
-                            flush=True,
-                        )
+        print(
+            f"intent weight={r.intent_weight:.2f} "
+            f"intent bonus={r.match_bonus:.2f} "
+            f"intent penalty={r.mismatch_penalty:.2f} "
+            f"keyword weight={r.keyword_weight:.2f} "            
+            f"keyword normalization={r.keyword_normalization:.0f} "
+            f"score={r.min_score:.2f} "
+            f"gap={r.min_score_gap:.2f} "
+            f"f05={metric:.3f} "
+            f"tp={r.tp} "
+            f"wrong={r.wrong} "
+            f"fp={r.fp} "
+            f"fn={r.fn}"
+        )
 
-                    sweep = SweepResult(
-                        match_bonus=match_bonus,
-                        mismatch_penalty=mismatch_penalty,
-                        min_score=min_score,
-                        min_score_gap=min_gap,
-                    )
 
-                    gate = AnswerabilityGate(
-                        min_score=min_score,
-                        min_score_gap=min_gap,
-                    )
+def generate_candidates(
+    start: float,
+    stop: float,
+    step: float,
+) -> list[float]:
 
-                    for case in cached_results:
-                        reranked: list[SearchResult] = (
-                            rerank_candidates(
-                                candidates=case.chroma_results,
-                                query=case.question,
-                                match_bonus=match_bonus,
-                                mismatch_penalty=mismatch_penalty,
-                            )
-                        )
+    count = int(round((stop - start) / step))
 
-                        decision: AnswerabilityDecision = (
-                            gate.evaluate_quick(
-                                case.question,
-                                reranked,
-                            )
-                        )
+    return [
+        round(start + i * step, 4)
+        for i in range(count + 1)
+    ]
 
-                        predicted = None
+async def main() -> None:
+    rag_service = create_rag_service()
+    rows = load_cases(GOLDEN_CSV)
+    cached_results = await retrieve_results(rag_service, rows)
 
-                        if decision.document:
-                            predicted = (
-                                decision.document.id
-                                .partition(":")[0]
-                            )
+    match_bonus_candidates = generate_candidates(start=0.0, stop=0.3, step=0.1) 
+    mismatch_penalty_candidates = generate_candidates(start=0.0, stop=0.3, step=0.1)
+    intent_weight_candidates = generate_candidates(start=0.0, stop=2.0, step=0.5)
+    keyword_weight_candidates = generate_candidates(start=0.0, stop=0.2, step=0.05)
+    keyword_normalization_candidates = generate_candidates(start=2, stop=10, step=2)
+    score_candidates = generate_candidates(start=0.0, stop=1.0, step=0.2)
+    gap_candidates = generate_candidates(start=0.0, stop=0.5, step=0.1)
 
-                        if not case.expected_entry:
-
-                            if decision.accepted:
-                                sweep.fp += 1
-
-                            continue
-
-                        if not decision.accepted:
-                            sweep.fn += 1
-
-                        elif predicted == case.expected_entry:
-                            sweep.tp += 1
-
-                        else:
-                            sweep.wrong += 1
-
-                    results.append(sweep)
+    results = run_sweep(
+        cached_results=cached_results,
+        match_bonus_candidates=match_bonus_candidates,
+        mismatch_penalty_candidates=mismatch_penalty_candidates,
+        score_candidates=score_candidates,
+        gap_candidates=gap_candidates,
+        keyword_weight_candidates=keyword_weight_candidates,
+        intent_weight_candidates=intent_weight_candidates,
+        keyword_normalization_candidates=keyword_normalization_candidates
+    )
 
     ranked = sorted(
         results,
@@ -311,30 +355,7 @@ async def main() -> None:
         reverse=True,
     )
 
-    print("")
-    print("\nTop 20 configurations")
-    print("=" * 80)
-
-    for r in ranked[-20:]:
-
-        metric = f05(
-            r.tp,
-            r.fp,
-            r.fn,
-            r.wrong,
-        )
-
-        print(
-            f"bonus={r.match_bonus:.2f} "
-            f"penalty={r.mismatch_penalty:.2f} "
-            f"score={r.min_score:.2f} "
-            f"gap={r.min_score_gap:.2f} "
-            f"f05={metric:.3f} "
-            f"tp={r.tp} "
-            f"wrong={r.wrong} "
-            f"fp={r.fp} "
-            f"fn={r.fn}"
-        )
+    print_results(ranked)
 
 
 if __name__ == "__main__":
