@@ -1,7 +1,9 @@
 import asyncio
 import logging
 import sys
+import json
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 from contextlib import contextmanager
 
@@ -17,7 +19,7 @@ from app.models.faq_health import (
     LowMarginQuery,
     EmbeddingHealthReport,
 )
-from app.quality.ranking.reranker import rerank_candidates_by_intent
+from app.quality.ranking.reranker import Reranker
 from app.vectorstores.base import VectorStore
 from app.vectorstores.temp_chroma import TempChromaStore
 
@@ -69,12 +71,14 @@ class FAQHealthCheckService:
         loader: 'FAQLoaderCSV',
         create_temp_store: Callable[[], TempChromaStore],
         create_importer: Callable[[VectorStore], 'FAQImporter'],
+        reranker: 'Reranker',
         live_progress: bool = True,
     ):
         self.embedding_provider = embedding_provider
         self.loader = loader
         self.create_temp_store = create_temp_store
         self.create_importer = create_importer
+        self.reranker = reranker
         self.live_progress = live_progress
 
     async def run_qa(
@@ -106,6 +110,14 @@ class FAQHealthCheckService:
                 logger.info("Imported %d entries into temp store", len(faq_document.entries))
 
                 report = await self._run_qa_checks(temp_store, faq_document.entries)
+
+                self._write_health_check_to_file(
+                    result=report,
+                    output_dir=Path(__file__).resolve().parents[3]
+                    / "eval"
+                    / "output",
+                )
+
 
                 logger.info("QA checks completed, status: %s", report.status)
                 return report
@@ -193,7 +205,7 @@ class FAQHealthCheckService:
             
             embedding = await self.embedding_provider.embed(entry.question)
             results = await store.search(embedding, limit=5)
-            results = rerank_candidates_by_intent(results, entry.question)
+            results = self.reranker.rerank(results, entry.question)
 
             found_ids = [r.id for r in results]
 
@@ -233,7 +245,7 @@ class FAQHealthCheckService:
             
             embedding = await self.embedding_provider.embed(entry.question)
             results = await store.search(embedding, limit=2)
-            results = rerank_candidates_by_intent(results, entry.question)
+            results = self.reranker.rerank(results, entry.question)
 
             if len(results) < 2:
                 continue
@@ -416,3 +428,33 @@ class FAQHealthCheckService:
             health_rate=health_rate,
             unhealthy_ids=unhealthy_ids,
         )
+
+    def _write_health_check_to_file(
+        self,
+        result: FAQHealthCheckReport,
+        output_dir: Path,
+    ) -> Path:
+
+        output_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        output_file = (
+            output_dir
+            / f"health_check_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.json"
+        )
+
+        with open(
+            output_file,
+            "w",
+            encoding="utf-8",
+        ) as f:
+            json.dump(
+                result.model_dump(),
+                f,
+                indent=2,
+                ensure_ascii=False,
+            )
+
+        return output_file
