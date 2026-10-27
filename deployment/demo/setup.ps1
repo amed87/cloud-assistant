@@ -11,19 +11,23 @@ $ProjectRoot = $PSScriptRoot
 Push-Location $ProjectRoot
 
 try {
-    $PythonLauncher = Get-Command py -ErrorAction SilentlyContinue
-    if (-not $PythonLauncher) {
-        throw 'Python 3.14 with the Windows py launcher is required. Install Python 3.14, then rerun setup.ps1.'
+    $BasePython = $null
+    foreach ($Candidate in @('python', 'python3', 'py')) {
+        $Cmd = Get-Command $Candidate -ErrorAction SilentlyContinue
+        if ($Cmd) { $BasePython = $Cmd.Source; break }
+    }
+    if (-not $BasePython) {
+        throw 'Kein Python gefunden. Installiere Python 3.x und stelle sicher, dass es im PATH liegt.'
     }
 
-    & $PythonLauncher.Source -3.14 --version
+    & $BasePython --version
     if ($LASTEXITCODE -ne 0) {
-        throw 'Python 3.14 was not found. Install Python 3.14, then rerun setup.ps1.'
+        throw "Python unter $BasePython ist nicht ausführbar."
     }
 
     $Python = Join-Path $ProjectRoot '.venv\Scripts\python.exe'
     if (-not (Test-Path $Python)) {
-        & $PythonLauncher.Source -3.14 -m venv .venv
+        & $BasePython -m venv .venv
         if ($LASTEXITCODE -ne 0) {
             throw 'Could not create the virtual environment.'
         }

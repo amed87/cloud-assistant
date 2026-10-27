@@ -7,7 +7,7 @@ Dies ist ein lokales Demopaket. Halten Sie den Server auf localhost beschränkt:
 ## Anforderungen
 
 - Windows 10 oder 11
-- Python 3.14 über den `py`-Launcher verfügbar
+- Python 3.14 
 - Internetzugang für Python-Pakete und gegebenenfalls Ollama-Modelle
 - Genügend Festplattenspeicher für die Python-Umgebung und Ollama-Modelle
 

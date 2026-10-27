@@ -4,122 +4,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chatbot KPI Dashboard</title>
-    <link rel="stylesheet" href="./styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <title>FAQ-Chatbot · Operations Dashboard</title>
+    <link rel="stylesheet" href="./dashboard-assets/styles.css">
 </head>
 
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header>
-            <h1>🤖 Chatbot KPI Dashboard</h1>
-            <div class="metadata" id="metadata">
-                Laden...
+    <div class="shell">
+
+        <header class="topbar">
+            <div class="topbar-main">
+                <h1>FAQ-Chatbot <span class="dot">·</span> Operations Dashboard</h1>
+                <p class="meta" id="meta">Lade Metriken …</p>
             </div>
+            <button class="btn" id="refreshBtn" type="button">Neu laden</button>
         </header>
 
-        <!-- Loading State -->
-        <div id="loading" class="loading">
-            ⏳ Lade Metriken aus metrics.json...
-        </div>
+        <div class="state" id="stateLoading">⏳ Lade Metriken …</div>
+        <div class="state state-error" id="stateError" hidden></div>
 
-        <!-- Error Container -->
-        <div id="error" class="error" style="display: none;"></div>
+        <main id="app" hidden>
 
-        <!-- Main Content (hidden until loaded) -->
-        <div id="dashboard-content" style="display: none;">
+            <!-- ===== GESAMTBEWERTUNG ===== -->
+            <section class="verdict" id="verdict" aria-label="Gesamtbewertung"></section>
 
-            <!-- KPI Cards Row -->
-            <section class="kpi-grid">
-                <div class="kpi-card">
-                    <div class="kpi-title">Overall Accuracy</div>
-                    <div class="kpi-value success" id="success-rate">--</div>
-                    <div class="kpi-delta positive" id="success-delta">Quality Gate</div>
+            <!-- ===== DATENSCHICHT ===== -->
+            <section class="card card-kb" id="cardKb" aria-labelledby="hKb">
+                <div class="card-head">
+                    <span class="eyebrow eyebrow-data">Datenqualität</span>
+                    <h2 id="hKb">Knowledge Base Health</h2>
+                    <p class="card-sub">Liegen Probleme in den Daten selbst?</p>
                 </div>
-                <div class="kpi-card">
-                    <div class="kpi-title">Avg Response Time</div>
-                    <div class="kpi-value" id="response-time">--</div>
-                    <div class="kpi-delta neutral" id="latency-info">P95: <span id="p95-latency">--</span></div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-title">F1 Score</div>
-                    <div class="kpi-value" id="f1-score">--</div>
-                    <div class="kpi-delta positive">Gate Precision: <span id="precision">--</span></div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-title">Health Score</div>
-                    <div class="kpi-value" id="health-score">--</div>
-                    <div class="kpi-delta warning" id="health-status">Composite Metric</div>
-                </div>
+                <div class="card-body" id="kbBody"></div>
             </section>
 
-            <!-- Charts Row 1 -->
-            <section class="charts-grid">
-                <div class="chart-card full-width">
-                    <div class="chart-header">
-                        <h2 class="chart-title">Erfolgsrate nach Kategorie</h2>
-                        <p class="chart-subtitle">Verteilung der Erfolgsraten über alle Test-Kategorien</p>
+            <!-- ===== EBENE 1: CHATBOT ===== -->
+            <div class="row row-2">
+                <section class="card" aria-labelledby="hQuality">
+                    <div class="card-head">
+                        <span class="eyebrow eyebrow-quality">Qualität</span>
+                        <h2 id="hQuality">Service Quality</h2>
+                        <p class="card-sub">Endgültige Antwortqualität nach dem Gate</p>
                     </div>
-                    <div class="chart-container">
-                        <canvas id="categoryChart"></canvas>
-                    </div>
-                </div>
-            </section>
+                    <div class="card-body" id="qualityBody"></div>
+                </section>
 
-            <!-- Charts Row 2 -->
-            <section class="charts-grid">
-                <div class="chart-card">
-                    <div class="chart-header">
-                        <h2 class="chart-title">Verdict Distribution</h2>
-                        <p class="chart-subtitle">Ergebnisverteilung aller analysierten Fragen</p>
+                <section class="card" aria-labelledby="hOps">
+                    <div class="card-head">
+                        <span class="eyebrow eyebrow-ops">Betrieb</span>
+                        <h2 id="hOps">Operational Health</h2>
+                        <p class="card-sub">Latenz, Durchsatz und Ressourcenverbrauch</p>
                     </div>
-                    <div class="chart-container">
-                        <canvas id="verdictChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-card">
-                    <div class="chart-header">
-                        <h2 class="chart-title">Latenz-Perzentile</h2>
-                        <p class="chart-subtitle">Antwortzeiten von Minimum bis Maximum</p>
-                    </div>
-                    <div class="chart-container">
-                        <canvas id="latencyChart"></canvas>
-                    </div>
-                </div>
-            </section>
+                    <div class="card-body" id="opsBody"></div>
+                </section>
+            </div>
 
-            <!-- Resources Section -->
-            <section class="resource-section">
-                <h2 class="table-title">Ressourcennutzung während Load-Test</h2>
-                <div style="overflow-x: auto;">
-                    <table id="resourceTable">
-                        <thead>
-                            <tr>
-                                <th>Prozess</th>
-                                <th>Avg CPU (%)</th>
-                                <th>Peak CPU (%)</th>
-                                <th>Avg Mem (MB)</th>
-                                <th>Peak Mem (MB)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Wird dynamisch gefüllt -->
-                        </tbody>
-                    </table>
+            <!-- ===== DIAGNOSE ===== -->
+            <details class="card details diag-card" id="diagCard">
+                <summary>
+                    <span class="eyebrow eyebrow-diag">Diagnose</span>
+                    <span class="summary-title">Diagnose</span>
+                    <span class="summary-hint">Problem Localization, Retrieval Potential, Pipeline Comparison, Problem
+                        Areas</span>
+                </summary>
+
+                <div class="diagnosis-grid">
+                    <section class="diagnosis-subcard" aria-labelledby="hLoc">
+                        <h3 id="hLoc">Problem Localization</h3>
+                        <p class="diagnosis-sub">Wo entsteht Qualitätsverlust?</p>
+                        <div class="card-body" id="locBody"></div>
+                    </section>
+
+                    <section class="diagnosis-subcard" aria-labelledby="hCov">
+                        <h3 id="hCov">Retrieval Potential</h3>
+                        <p class="diagnosis-sub">Wie oft ist die richtige FAQ überhaupt in den Kandidaten?</p>
+                        <div class="card-body" id="covBody"></div>
+                    </section>
+
+                    <section class="diagnosis-subcard" aria-labelledby="hPipe">
+                        <h3 id="hPipe">Pipeline Comparison</h3>
+                        <p class="diagnosis-sub">Bringt der Reranker dem Gesamtsystem einen Vorteil?</p>
+                        <div class="card-body" id="pipeBody"></div>
+                    </section>
+
+                    <section class="diagnosis-subcard" aria-labelledby="hAreas">
+                        <h3 id="hAreas">Problem Areas</h3>
+                        <p class="diagnosis-sub">Schlechteste Frage-Kategorien – nach Quote oder nach Wirkung</p>
+                        <div class="card-body" id="areasBody"></div>
+                    </section>
                 </div>
-            </section>
+            </details>
 
-        </div>
+            <!-- ===== TECHNIK ===== -->
+            <details class="card details" id="techCard">
+                <summary>
+                    <span class="eyebrow eyebrow-tech">Technik</span>
+                    <span class="summary-title">Technical Details</span>
+                    <span class="summary-hint">Margin-Analyse, Gate-Diagnostik, Stage-Metriken</span>
+                </summary>
+                <div class="card-body" id="techBody"></div>
+            </details>
 
-        <!-- Footer -->
-        <footer>
-            <p>KPI-Dashboard • Generiert am <span id="generated-at">--</span> • Run ID: <span id="run-id">--</span></p>
-            <p>Datum: <span id="current-date">--</span></p>
+        </main>
+
+        <footer class="foot">
+            <span id="footMeta">--</span>
         </footer>
+
     </div>
 
-    <script src="./dashboard.js"></script>
+    <script src="./dashboard-assets/dashboard.js"></script>
 </body>
 
 </html>
