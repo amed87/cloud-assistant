@@ -205,7 +205,7 @@ class FAQHealthCheckService:
             
             embedding = await self.embedding_provider.embed(entry.question)
             results = await store.search(embedding, limit=5)
-            results = self.reranker.rerank(results, entry.question)
+            results = await self.reranker.rerank(results, entry.question)
 
             found_ids = [r.id for r in results]
 
@@ -245,7 +245,7 @@ class FAQHealthCheckService:
             
             embedding = await self.embedding_provider.embed(entry.question)
             results = await store.search(embedding, limit=2)
-            results = self.reranker.rerank(results, entry.question)
+            results = await self.reranker.rerank(results, entry.question)
 
             if len(results) < 2:
                 continue

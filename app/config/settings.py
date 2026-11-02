@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     INTENT_MISMATCH_PENALTY: float = 0.1
     KEYWORD_WEIGHT: float = 0.0
     KEYWORD_MATCH_NORMALIZATION: float = 5.0
+    DECISION_MODEL: str = "laya"
+    DECISION_MODEL_WEIGHT: float = 0.3
+    DECISION_MODEL_WEIGHTS: list[float] = [0.3]
 
     ENABLE_PROFILER: bool = True
     PROFILER_SAMPLE_RATE: float = 0.1

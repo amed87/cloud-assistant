@@ -22,4 +22,5 @@ class RetrievalResult:
     """Results of the different steps of the RAG retrieval process."""
     chroma: list[SearchResult]
     reranker: list[SearchResult]
+    feature_scores: dict[str, dict[str, float]]
     gate: AnswerabilityDecision

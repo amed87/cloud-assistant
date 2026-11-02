@@ -18,3 +18,10 @@ fragetyp_filter:
   Problem: '\b(fehler\b|\berror\b|\bproblem\b|\bfunktioniert nicht\b|\bgeht nicht\b|\b(?:kann\s+(?:ich\s+|mir\s+|du\s+)?nicht|nicht\s+kann)\b|\bnicht\s+einloggen\b|\bgsperrt\b|\bstörung\b)'
   Prozess: '\b(wie\b|\bum\b|\bbeantrage\b|\babgeben\b|\banleitung\b|\bschritt\b|\bausfüllen\b|\baufrufen\b)'
 fragetyp_fallback: 'Generell'
+
+# Der Prompt für das Decision-Model-Feature des Rerankers
+decision_model_prompt: 'Which candidate question is a structurally valid paraphrase that shares the identical information requirement, constraints and intent as the user query?'
+alt: 'Which of these questions has the same meaning as the query?'
+
+decision_model_prompts:
+  matched_faq: 'Which candidate question is a structurally valid paraphrase that shares the identical information requirement, constraints and intent as the user query?'

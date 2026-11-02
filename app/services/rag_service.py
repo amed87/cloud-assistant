@@ -79,7 +79,7 @@ class RagService:
             limit=5,
         )
 
-        reranked = self.reranker.rerank(documents, question)
+        reranked, feature_scores = await self.reranker.rerank(documents, question)
         decision = self.answerability_gate.evaluate_quick(
             question=question,
             documents=reranked,
@@ -97,6 +97,7 @@ class RagService:
             return RetrievalResult(
                 chroma=documents,
                 reranker=reranked,
+                feature_scores=feature_scores,
                 gate=decision,
             )
         
