@@ -15,7 +15,7 @@ Das Dashboard zeigt Evaluationsmetriken aus der letzten Evaluation:
 ## Voraussetzungen
 
 Das Dashboard benötigt eine einzige Datei:
-- **`metrics.json`** — Generiert durch die Evaluationspipeline (siehe `README_EVALUATION.md`)
+- **`metrics.json`** — Generiert durch die Evaluationspipeline (siehe [Evaluation](../../docs/evaluation.md))
 
 ## Installation
 
@@ -23,11 +23,11 @@ Das Dashboard benötigt eine einzige Datei:
 
 Lege die generierte `metrics.json` in den Ordner:
 ```
-web/dashboard/metrics.json
+app/web/dashboard/metrics.json
 ```
 
 **Woher bekomme ich `metrics.json`?**  
-Die Datei wird durch die Evaluationspipeline erzeugt. Siehe [`README_EVALUATION.md`](../README_EVALUATION.md) für den genauen Ablauf.
+Die Datei wird durch die Evaluationspipeline erzeugt. Siehe [Evaluation](../../docs/evaluation.md) für den genauen Ablauf.
 
 ### 2. Dashboard starten
 
@@ -39,7 +39,7 @@ python -m uvicorn app.main:app
 
 **Alternative — Direkter File-Server:**
 ```bash
-cd web/dashboard
+cd app/web/dashboard
 python -m http.server 8080
 ```
 Öffne dann: <http://127.0.0.1:8080/index.html>

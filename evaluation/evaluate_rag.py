@@ -35,11 +35,13 @@ KNOWN_FALSE_POSITIVES = {"fast_treffer"}
 
 @dataclass
 class CaseResult:
+    """Scalar retrieval, reranking, gate, and end-to-end outcomes for one case."""
+
     question: str
     category: str
     expected_entry: str
     
-    # Retrieval metrics (ChromaDB) - skalare Werte, keine Listen
+    # Retrieval metrics (ChromaDB) - scalar values, not lists.
     chroma_top_score: float = 0.0
     chroma_entry_id: str | None = None
     chroma_margin: float | None = None
@@ -48,20 +50,20 @@ class CaseResult:
     retrieval_hit_top5: bool = False
     retrieval_hit_top10: bool = False
     
-    # Reranker metrics (Intent) - skalare Werte, keine Listen
+    # Reranker metrics (intent) - scalar values, not lists.
     reranker_top_score: float = 0.0
     reranker_entry_id: str | None = None
     reranker_margin: float | None = None
     reranker_verdict: str | None = None
     
-    # Gate metrics (Answerability) - ohne Reranker
+    # Gate metrics (answerability) without the reranker.
     gate_chroma_accepted: bool = False
     gate_chroma_reason: str = ""
     gate_chroma_confidence: float = 0.0
     gate_chroma_entry_id: str | None = None
     gate_chroma_verdict: str | None = None
 
-    # Gate metrics (Answerability) - mit Reranker
+    # Gate metrics (answerability) with the reranker.
     gate_reranker_accepted: bool = False
     gate_reranker_reason: str = ""
     gate_reranker_confidence: float = 0.0
@@ -80,6 +82,7 @@ class CaseResult:
     verdict: str | None = None
 
 def parse_args():
+    """Parse the optional output CSV path for this evaluation run."""
     parser = argparse.ArgumentParser(description="Evaluate RAG chatbot")
     parser.add_argument(
         "--output", "-o",
@@ -90,6 +93,7 @@ def parse_args():
     return parser.parse_args()
 
 def load_cases(path: Path) -> list[dict]:
+    """Load golden questions and expected FAQ IDs from a CSV file."""
     with open(path, "r", encoding="utf-8", newline="") as f:
         return list(csv.DictReader(f))
 
@@ -246,13 +250,17 @@ def write_results_to_csv(results: list[CaseResult], path: Path) -> None:
             ])
 
 def get_gate_document(result: RetrievalResult):
+    """Return the candidate accepted or rejected by the answerability gate."""
     return result.gate.document 
 
+
 def get_gate_entry_id(result: RetrievalResult):
+    """Return the source FAQ ID without its content-version suffix."""
     return result.gate.document.id.partition(":")[0] if result.gate.document else None
 
 
 async def main() -> None:
+    """Run each golden case through retrieval, reranking, and gate diagnostics."""
     settings = get_settings()
     content_config = load_content_config()
     

@@ -1,3 +1,5 @@
+"""Verify FAQ and text loaders parse valid inputs and report malformed files."""
+
 import pytest
 
 from app.documents.faq_loader_csv import FAQLoaderCSV

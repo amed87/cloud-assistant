@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 from httpx import ConnectError, TimeoutException
 from ollama import AsyncClient, ResponseError
@@ -45,9 +44,8 @@ class OllamaDecisionProvider(
 
         try:
             NONE = "None of the above options."
-            choices.append(NONE)
 
-            # system_one ist der native Ollama-Endpunkt für Entscheidungsmodelle
+            # system_one is Ollama's native endpoint for decision models.
             response = await self.client.systemone(
                 model=self.model,
                 state=f"Nutzer-Suchanfrage: {query}",

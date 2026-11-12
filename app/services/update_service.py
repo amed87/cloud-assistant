@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 class UpdateService:
+    """Load source documents and pass them to the configured importer."""
+
     def __init__(
         self,
         loader: DocumentLoader,
@@ -19,6 +21,7 @@ class UpdateService:
         self.importer = importer
 
     async def update_database(self) -> None:
+        """Load the configured FAQ input and import it into the vector store."""
         try:
             document = await self.loader.load(
                 get_settings().FAQ_INPUT_FILE,
@@ -32,4 +35,5 @@ class UpdateService:
             raise
 
     def get_database(self) -> dict[str]:
+        """Return the importer's current vector-store contents."""
         return self.importer.get_current_database()

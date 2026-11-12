@@ -31,10 +31,12 @@ LATENCY_MODULE = "evaluation.request_looper"
 KPI_MODULE = "evaluation.calculate_kpis"
 
 def ensure_output_dir():
+    """Create the shared output directory for evaluation artifacts."""
     EVAL_OUTPUT.mkdir(parents=True, exist_ok=True)
     print(f"Output directory: {EVAL_OUTPUT}")
 
 def run_module(module: str, args: list[str] | None = None) -> bool:
+    """Run an evaluation module in a child Python process and report success."""
     cmd = [sys.executable, "-m", module]
     if args:
         cmd.extend(args)
@@ -53,6 +55,7 @@ def run_module(module: str, args: list[str] | None = None) -> bool:
         return False
 
 async def run_quality_only():
+    """Run golden-dataset evaluation and calculate KPIs for its output."""
     print("\nMODE: QUALITY EVALUATION")
     print("-" * 40)
     
@@ -74,6 +77,7 @@ async def run_quality_only():
     return success
 
 async def run_latency_only():
+    """Run the load scenario and calculate KPIs from generated measurements."""
     print("\nMODE: LATENCY & RESOURCES")
     print("-" * 40)
     
@@ -98,6 +102,7 @@ async def run_latency_only():
     return success
 
 async def run_kpis_only():
+    """Calculate KPIs from existing evaluation output without rerunning tests."""
     print("\nMODE: KPI CALCULATION")
     print("-" * 40)
     
@@ -125,6 +130,7 @@ async def run_kpis_only():
     return success
 
 async def run_full_pipeline():
+    """Run quality evaluation, load testing, and KPI calculation in sequence."""
     print("\nMODE: FULL PIPELINE")
     print("=" * 60)
     
@@ -162,6 +168,7 @@ async def run_full_pipeline():
     return all_success
 
 def main():
+    """Parse the selected evaluation mode and return an appropriate exit code."""
     parser = argparse.ArgumentParser(
         description='RAG Chatbot Evaluation Runner'
     )

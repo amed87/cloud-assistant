@@ -37,7 +37,7 @@ async def get_database(update_service: UpdateService = Depends(get_update_servic
     "/faq-health-check",
     response_model=FAQHealthCheckReport,
     summary="FAQ Health Check",
-    description="Führt vollständigen QA-Check auf neuen FAQs durch. Läuft in isolierter temporärer ChromaDB.",
+    description="Runs a complete QA check on new FAQs in an isolated temporary ChromaDB instance.",
 )
 @router.post(
     "/faq-health-check",
@@ -47,12 +47,12 @@ async def faq_health_check(
     request: FAQHealthCheckRequest,
     qa_service: FAQHealthCheckService = Depends(get_faq_health_check_service),
 ):
-    """Führt vollständigen QA-Check auf neuen FAQs durch."""
+    """Run a complete QA check on new FAQs."""
     try:
         file_path = request.file_path or get_settings().FAQ_INPUT_FILE
         logger.info("Starting FAQ health check for: %s", file_path)
 
-        # Service macht ALLES (Load → TempStore → Import → Checks)
+        # The service handles loading, temporary storage, import, and checks.
         report = await qa_service.run_qa(file_path)
 
         return report

@@ -2,6 +2,8 @@ from app.vectorstores.models import SearchResult
 from app.quality.models import AnswerabilityDecision
 
 class AnswerabilityGate:
+    """Accept a top retrieval result only when its score and answer are adequate."""
+
     def __init__(
         self,
         min_score: float,
@@ -15,6 +17,7 @@ class AnswerabilityGate:
         question: str,
         documents: list[SearchResult],
     ) -> AnswerabilityDecision:
+        """Reject missing, weak, ambiguous, or answerless candidates."""
         if not documents:
             return AnswerabilityDecision(
                 accepted=False,

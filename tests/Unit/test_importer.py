@@ -1,3 +1,5 @@
+"""Test conversion of FAQ and text documents into vector-store records."""
+
 import pytest
 from app.documents.chunker import DocumentChunker
 from app.documents.models import TextDocument

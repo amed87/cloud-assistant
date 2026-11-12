@@ -1,7 +1,10 @@
+"""Test RAG filtering, quick-answer acceptance, fallback behavior, and formatting."""
+
 import pytest
 from pathlib import Path
 
 from app.quality.answerability.answerability_gate import AnswerabilityGate
+from app.quality.ranking.reranker import Reranker
 from app.services.rag_service import RagService, RagContext
 from app.vectorstores.models import SearchResult
 from app.config.content_settings import load_content_config
@@ -42,6 +45,7 @@ def create_service(monkeypatch, documents: list) -> RagService:
     return RagService(
         embedding_provider=FakeEmbeddingProvider(),
         vector_store=FakeVectorStore(documents),
+        reranker=Reranker(features=[]),
         answerability_gate=AnswerabilityGate(
             min_score=settings.RAG_MIN_SCORE,
             min_score_gap=0.1,
@@ -161,4 +165,14 @@ async def test_quick_retrieve_handles_empty_answer_string(monkeypatch) -> None:
     content_config = load_content_config(str(CONTENT_CONFIG_PATH))
     service = create_service(monkeypatch, [result(0.9, answer="")])
     answer = await service.quick_retrieve("Frage")
+    assert answer == content_config.standard_fallback
+
+
+@pytest.mark.asyncio
+async def test_quick_retrieve_returns_fallback_without_candidates(monkeypatch) -> None:
+    content_config = load_content_config(str(CONTENT_CONFIG_PATH))
+    service = create_service(monkeypatch, [])
+
+    answer = await service.quick_retrieve("Frage")
+
     assert answer == content_config.standard_fallback

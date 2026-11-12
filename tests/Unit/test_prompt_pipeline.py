@@ -1,3 +1,5 @@
+"""Check prompt assembly from system instructions and conversation history."""
+
 import pytest
 
 from app.models.conversation import Conversation

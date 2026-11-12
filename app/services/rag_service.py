@@ -9,17 +9,20 @@ from app.vectorstores.base import VectorStore
 from app.vectorstores.models import SearchResult
 from app.quality.answerability.answerability_gate import AnswerabilityGate
 from app.quality.ranking.reranker import Reranker
-from app.quality.models import AnswerabilityDecision, RetrievalResult
+from app.quality.models import RetrievalResult
 
 
 logger = logging.getLogger(__name__)
 
 
 class RagContext(BaseModel):
+    """Retrieved documents prepared as context for the language model."""
+
     documents: list[SearchResult]
 
     @property
     def text(self) -> str:
+        """Format documents with source, chunk, and relevance metadata."""
         chunks = []
 
         for document in self.documents:
@@ -45,6 +48,7 @@ class RagContext(BaseModel):
 
 
 class RagService:
+    """Retrieve, rank, filter, and format documents for chat or quick answers."""
 
     def __init__(
         self,
@@ -71,6 +75,7 @@ class RagService:
             question: str,
             eval: bool = False,
     ) -> str | RetrievalResult:
+        """Return the accepted FAQ answer or fallback; optionally expose diagnostics."""
         logger.info("Retrieving top document for question: %s", question)
         answer = self.content_config.standard_fallback
 
@@ -91,7 +96,10 @@ class RagService:
             answer = decision.document.metadata.get("answer")
 
 
-        logger.info(f"Top document retrieved with score: {decision.document.score}")
+        logger.info(
+            "Top document retrieved with score: %s",
+            decision.document.score if decision.document else None,
+        )
 
         if eval:
             return RetrievalResult(
@@ -107,7 +115,7 @@ class RagService:
         self,
         question: str,
     ) -> RagContext:
-
+        """Return top-K candidates meeting the configured relevance threshold."""
         logger.info(
             "Retrieving RAG context for question: %s",
             question,
@@ -144,6 +152,7 @@ class RagService:
             question: str, 
             limit: int,
         ) -> list[SearchResult]:
+        """Embed the query and search the vector store for its nearest candidates."""
         embedding = await self.embedding_provider.embed(question)
 
         return await self.vector_store.search(

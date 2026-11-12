@@ -3,6 +3,7 @@ from app.repositories.base import ConversationRepository
 
 
 class ConversationService:
+    """Provide conversation lookup, initialization, and persistence operations."""
 
     def __init__(
         self,
@@ -14,7 +15,7 @@ class ConversationService:
         self,
         conversation_id: str,
     ) -> Conversation:
-
+        """Load a conversation or return a new empty one with the requested ID."""
         conversation = await self.repository.get(
             conversation_id
         )
@@ -30,7 +31,7 @@ class ConversationService:
         self,
         conversation: Conversation,
     ):
-
+        """Persist the conversation through the configured repository."""
         await self.repository.save(
             conversation
         )

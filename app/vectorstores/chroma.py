@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class ChromaVectorStore(VectorStore):
+    """Persist and search application vectors in the configured Chroma collection."""
 
     def __init__(self):
         settings = get_settings()
@@ -32,6 +33,7 @@ class ChromaVectorStore(VectorStore):
         self,
         documents: list[VectorDocument],
     ) -> None:
+        """Upsert vector documents and wrap backend failures as store errors."""
         try:
             await asyncio.to_thread(
                 self.collection.upsert,
@@ -73,6 +75,7 @@ class ChromaVectorStore(VectorStore):
         embedding: list[float],
         limit: int = 5,
     ) -> list[SearchResult]:
+        """Return nearest documents with Chroma distances converted to scores."""
 
         try:
             results = await asyncio.to_thread(
@@ -125,6 +128,7 @@ class ChromaVectorStore(VectorStore):
         self,
         ids: list[str],
     ) -> None:
+        """Delete the specified document IDs from the collection."""
         try:
 
             await asyncio.to_thread(
@@ -148,6 +152,7 @@ class ChromaVectorStore(VectorStore):
             ) from ex
 
     def get(self) -> dict[str, object]:
+        """Return collection IDs and metadata for synchronization workflows."""
         try:
             db = self.collection.get(include=["metadatas"])
             logger.info("Fetched all documents from ChromaDB.")

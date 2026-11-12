@@ -1,3 +1,5 @@
+"""Test conversation updates and response generation through the chat service."""
+
 import pytest
 
 from app.models.conversation import Conversation

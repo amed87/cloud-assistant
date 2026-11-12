@@ -1,3 +1,5 @@
+"""Check conversation creation, lookup, and persistence through the service."""
+
 import pytest
 
 from app.models.conversation import Conversation

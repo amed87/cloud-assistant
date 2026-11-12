@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 class OllamaEmbeddingProvider(
     EmbeddingProvider,
 ):
+    """Generate embeddings through Ollama's asynchronous embedding API."""
 
     def __init__(
         self,
@@ -31,7 +32,7 @@ class OllamaEmbeddingProvider(
         self,
         text: str,
     ) -> list[float]:
-
+        """Embed one text and translate provider failures to application errors."""
         try:
             response = await self.client.embed(
                 model=self.model,

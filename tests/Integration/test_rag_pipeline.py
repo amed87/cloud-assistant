@@ -1,3 +1,5 @@
+"""Check that imported documents can be embedded and retrieved from Chroma."""
+
 from uuid import uuid4
 
 import pytest

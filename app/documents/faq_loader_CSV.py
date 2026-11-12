@@ -9,7 +9,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class FAQLoaderCSV(FAQLoader):
+    """Load semicolon-separated FAQ data and assign content-versioned IDs."""
+
     @staticmethod
     def _generate_entry_hash(
         question: str,
@@ -18,6 +21,7 @@ class FAQLoaderCSV(FAQLoader):
         question_type: str,
         keywords: list[str],
     ) -> str:
+        """Create a stable hash from normalized FAQ content and metadata."""
         content = {
             "question": question.strip(),
             "answer": answer.strip(),

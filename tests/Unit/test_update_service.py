@@ -1,3 +1,5 @@
+"""Verify database updates load the configured source and pass it to the importer."""
+
 import pytest
 
 from app.services.update_service import UpdateService

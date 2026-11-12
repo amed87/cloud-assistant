@@ -14,26 +14,26 @@ class DecisionModelFeature(RankingFeature):
     """
     decision_provider: DecisionProvider
     
-    # Ein interner Cache verhindert, dass bei einer Schleife über 
-    # alle Kandidaten das Modell mehrfach für dieselbe Query aufgerufen wird.
+    # Cache results so the model is not called repeatedly for the same query
+    # while scoring each candidate.
     _last_query: str | None = field(default=None, init=False)
     _cached_scores: dict[str, DecisionResult] | None = field(default=None, init=False)
 
     async def prime_cache(self, query: str, all_candidates: list[SearchResult]) -> None:
         """
-        Befüllt den Cache asynchron für die gesamte Liste an Kandidaten.
-        MUSS im asynchronen Orchestrator vor der synchronen Scoring-Schleife aufgerufen werden.
+        Populate the cache asynchronously for the complete candidate list.
+        The async orchestrator must call this before the synchronous scoring loop.
         """
         self._last_query = query
         
-        # Extrahieren Sie hier das Textfeld, das Ihre Frage enthält (z.B. cand.question oder cand.text)
+        # Extract the candidate text used as a decision choice.
         candidate_texts = [cand.content for cand in all_candidates]
         
         if not candidate_texts:
             self._cached_scores = {}
             return
             
-        # Ein einziger, asynchroner CPU-Inference-Aufruf für das gesamte Feld
+        # Make one asynchronous inference call for all candidates.
         self._cached_scores = await self.decision_provider.decide(
             query=query,
             questions=content_config.decision_model_prompts,
@@ -42,8 +42,7 @@ class DecisionModelFeature(RankingFeature):
 
     def score(self, query: str, candidate: SearchResult) -> dict[str, float]:
         """
-        Gibt den normalisierten Wahrscheinlichkeitswert (0.0 bis 1.0) 
-        für den spezifischen Kandidaten zurück.
+        Return the normalized probability (0.0 to 1.0) for this candidate.
         """
         if self._last_query != query or self._cached_scores is None:
             return 0.0

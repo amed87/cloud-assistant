@@ -1,3 +1,5 @@
+"""Cover acceptance and rejection decisions for retrieval candidates."""
+
 import pytest
 
 from app.quality.answerability.answerability_gate import AnswerabilityGate

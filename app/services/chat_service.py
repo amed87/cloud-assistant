@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class ChatService:
+    """Coordinate conversation history, retrieval context, and model responses."""
 
     def __init__(
         self,
@@ -36,6 +37,7 @@ class ChatService:
         conversation_id: str,
         question: str,
     ) -> str:
+        """Generate, persist, and return a response for one user turn."""
 
         conversation = await self._get_or_create_conversation(
             conversation_id
@@ -84,6 +86,7 @@ class ChatService:
         conversation_id: str,
         question: str,
     ) -> AsyncIterator[str]:
+        """Yield response tokens and persist their concatenated assistant message."""
 
         conversation = await self._get_or_create_conversation(
             conversation_id
@@ -132,7 +135,7 @@ class ChatService:
         self,
         conversation_id: str,
     ) -> Conversation:
-
+        """Return stored conversation history or initialize an empty conversation."""
         conversation = await self.repository.get(
             conversation_id,
         )

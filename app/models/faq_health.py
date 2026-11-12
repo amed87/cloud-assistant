@@ -2,29 +2,29 @@ from pydantic import BaseModel, Field
 from typing import Any, List, Dict
 
 class FAQHealthCheckRequest(BaseModel):
-    """Request Body für FAQ Health Check Endpoint."""
+    """Request body for the FAQ health-check endpoint."""
     
     file_path: str | None = None
 
 class SelfRetrievalFailure(BaseModel):
-    """Einzelner Self-Retrieval Fehler mit Frage-Text."""
+    """A self-retrieval failure containing the FAQ question."""
     id: str
     question: str
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 class DuplicatePair(BaseModel):
-    """Semantisch ähnliches FAQ-Paar mit Fragen."""
+    """A semantically similar FAQ pair and its questions."""
     id_1: str
     question_1: str
     id_2: str
     question_2: str
     distance: float
     notes: str | None = None
-    semantics_issue: bool = True  # Distance zu niedrig = semantisches Problem
-    intent_separatable: bool = False  # Unterschiedlicher Fragetyp = Reranker kann trennen
+    semantics_issue: bool = True  # A low distance indicates a semantic issue.
+    intent_separatable: bool = False  # Different question types can be separated by the reranker.
 
 class LowMarginQuery(BaseModel):
-    """Query mit zu kleinem Margin zwischen Rank 1 und 2."""
+    """A query with a small score margin between ranks one and two."""
     query_id: str
     query_question: str
     rank_1_id: str
@@ -41,7 +41,7 @@ class SelfRetrievalReport(BaseModel):
     rate: float
     failed_entries: List[SelfRetrievalFailure] = Field(
         default_factory=list,
-        description="Fehlerhafte Self-Retrieval Einträge (mit Fragen)"
+        description="Self-retrieval failures, including their questions."
     )
     
     def passes(self, min_rate: float = 0.95) -> bool:
@@ -50,7 +50,7 @@ class SelfRetrievalReport(BaseModel):
 class DuplicateReport(BaseModel):
     duplicate_pairs: List[DuplicatePair] = Field(
         default_factory=list,
-        description="Semantisch ähnliche FAQ-Paare (mit Fragen)"
+        description="Semantically similar FAQ pairs, including their questions."
     )
     affected_count: int = 0
     
@@ -63,7 +63,7 @@ class RetrievalMarginReport(BaseModel):
     below_threshold_count: int = 0
     low_margin_entries: List[LowMarginQuery] = Field(
         default_factory=list,
-        description="Queries mit Margin < 0.1 (mit Fragen)"
+        description="Queries with a margin below 0.1, including their questions."
     )
     
     def passes(self, min_margin: float = 0.1) -> bool:
@@ -77,7 +77,7 @@ class EmbeddingHealthReport(BaseModel):
     health_rate: float = 1.0
     unhealthy_ids: List[str] = Field(
         default_factory=list,
-        description="IDs mit problematischen Embeddings"
+        description="IDs with problematic embeddings."
     )
     
     def passes(self, min_health_rate: float = 1.0) -> bool:

@@ -13,8 +13,8 @@ from app.vectorstores.models import SearchResult, VectorDocument
 
 logger = logging.getLogger(__name__)
 
-class TempChromaStore(VectorStore):  # ✅ Implementiert VectorStore Interface
-    """Temporäre ChromaDB-Instanz für QA-Checks. Implementiert VectorStore Interface."""
+class TempChromaStore(VectorStore):  # Implements the VectorStore interface.
+    """Temporary ChromaDB instance for QA checks implementing the VectorStore interface."""
 
     def __init__(self, temp_path: str | None = None):
         settings = get_settings()
@@ -36,7 +36,7 @@ class TempChromaStore(VectorStore):  # ✅ Implementiert VectorStore Interface
         self,
         documents: list[VectorDocument],
     ) -> None:
-        """Speichert Dokumente im Temp Vector Store."""
+        """Store documents in the temporary vector store."""
         try:
             await asyncio.to_thread(
                 self.collection.upsert,
@@ -57,7 +57,7 @@ class TempChromaStore(VectorStore):  # ✅ Implementiert VectorStore Interface
         limit: int = 5,
         intent: str = "general",
     ) -> list[SearchResult]:
-        """Sucht ähnliche Dokumente im Temp Vector Store."""
+        """Search for similar documents in the temporary vector store."""
         try:
             results = await asyncio.to_thread(
                 self.collection.query,
@@ -87,7 +87,7 @@ class TempChromaStore(VectorStore):  # ✅ Implementiert VectorStore Interface
         self,
         ids: list[str],
     ) -> None:
-        """Löscht Dokumente aus Temp Vector Store."""
+        """Delete documents from the temporary vector store."""
         try:
             await asyncio.to_thread(
                 self.collection.delete,
@@ -109,7 +109,7 @@ class TempChromaStore(VectorStore):  # ✅ Implementiert VectorStore Interface
             raise VectorStoreError("Failed to fetch temporary vector store database.") from ex
 
     async def close(self) -> None:
-        """Cleanup: temporäre DB löschen."""
+        """Delete the temporary database."""
         try:
             shutil.rmtree(self.temp_path)
             logger.info("Cleaned up temporary ChromaDB at %s", self.temp_path)

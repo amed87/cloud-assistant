@@ -4,6 +4,7 @@ from app.quality.ranking.decision_model_feature import DecisionModelFeature
 from app.quality.ranking.dm_single_feature import DMSingleFeature
 
 class Reranker:
+    """Apply ranking features to retrieval results and retain their raw scores."""
 
     def __init__(
         self,
@@ -18,13 +19,13 @@ class Reranker:
         candidates: list[SearchResult],
         query: str,
     ) -> tuple[list[SearchResult], dict[str, dict[str, float]]]:
-        """Rerank the candidates based on the intent of the query."""
+        """Score and sort candidates, returning per-feature scores by candidate ID."""
         boosted_results = []
         candidate_feature_scores: dict[str, dict[str, float]] = {}
 
         for feature in self._features:
             if isinstance(feature, DMSingleFeature) and self._dm_feature is not None:
-                # Hier lösen wir den async Aufruf an Ollama auf, BEVOR wir in die synchrone Schleife gehen
+                # Resolve the async Ollama call before entering the synchronous scoring loop.
                 await self._dm_feature.prime_cache(query, candidates)
                 break
 

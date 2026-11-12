@@ -10,7 +10,7 @@ from app.quality.ranking.reranker import Reranker
 from app.quality.ranking.intent_feature import IntentFeature
 from app.quality.ranking.keyword_feature import KeywordFeature
 
-# Shared Resources (Singletons wie in production)
+# Shared resources (singletons, as in production).
 settings = get_settings()
 _embedding_provider = OllamaEmbeddingProvider()
 _loader = FAQLoaderCSV()
@@ -28,25 +28,25 @@ features =  [
     ]
 _reranker = Reranker(features)
 
-# Factory für TempChromaStore (pro Request)
+# Factory for TempChromaStore (per request).
 def create_temp_store():
-    """Erstellt neue temporäre ChromaDB-Instanz pro Request."""
+    """Create a new temporary ChromaDB instance for each request."""
     from app.vectorstores.temp_chroma import TempChromaStore
     return TempChromaStore()
 
-# Factory für FAQImporter (mit injiziertem Store)
+# Factory for FAQImporter with an injected store.
 def create_importer(vector_store):
-    """Erstellt FAQImporter mit injiziertem VectorStore."""
+    """Create an FAQImporter with the provided vector store."""
     from app.documents.faq_importer import FAQImporter
     return FAQImporter(
         embedding_provider=_embedding_provider,
         vector_store=vector_store,
     )
 
-# Singleton Service mit ALLEN Dependencies injiziert (wie get_update_service())
+# Singleton service with all dependencies injected, like get_update_service().
 @lru_cache()
 def get_faq_health_check_service() -> FAQHealthCheckService:
-    """Singleton FAQHealthCheckService mit allen Injected Dependencies."""
+    """Return the singleton FAQHealthCheckService with all dependencies injected."""
     return FAQHealthCheckService(
         embedding_provider=_embedding_provider,
         loader=_loader,

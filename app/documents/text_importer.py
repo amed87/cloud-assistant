@@ -9,6 +9,8 @@ from app.vectorstores.models import VectorDocument
 
 
 class TextImporter(DocumentImporter):
+    """Chunk text, embed each chunk, and store the resulting vectors."""
+
     def __init__(
         self,
         embedding_provider: EmbeddingProvider,
@@ -25,6 +27,7 @@ class TextImporter(DocumentImporter):
         self,
         document: TextDocument,
     ) -> None:
+        """Create and persist one vector document for each text chunk."""
         chunks = self.chunker.chunk(document)
 
         vector_documents: list[VectorDocument] = []

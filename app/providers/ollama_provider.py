@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class OllamaProvider(LLMProvider):
+    """Generate chat responses with the configured Ollama language model."""
 
     def __init__(self):
         settings = get_settings()
@@ -34,6 +35,7 @@ class OllamaProvider(LLMProvider):
         self,
         messages: list[ChatMessage],
     ) -> list[dict[str, str]]:
+        """Convert application messages to the dictionary format Ollama expects."""
         return [
             {
                 "role": message.role,
@@ -46,7 +48,7 @@ class OllamaProvider(LLMProvider):
         self,
         messages: list[ChatMessage],
     ) -> str:
-
+        """Return a complete response and normalize Ollama connection errors."""
         ollama_messages = self._to_ollama_messages(messages)
 
         start = time.perf_counter()
@@ -122,7 +124,7 @@ class OllamaProvider(LLMProvider):
         self,
         messages: list[ChatMessage],
     ) -> AsyncIterator[str]:
-
+        """Yield non-empty response tokens from Ollama's streaming endpoint."""
         ollama_messages = self._to_ollama_messages(messages)
 
         start = time.perf_counter()

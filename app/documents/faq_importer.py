@@ -10,6 +10,8 @@ from app.quality.filters.intent_filter import filterIntent
 
 
 class FAQImporter(DocumentImporter):
+    """Synchronize FAQ entries and their embeddings with a vector store."""
+
     @staticmethod
     def _normalize_source(source: str) -> str:
         return PurePosixPath(source.replace("\\", "/")).as_posix().casefold()
@@ -28,6 +30,7 @@ class FAQImporter(DocumentImporter):
         self,
         faq: FAQDocument,
     ) -> None:
+        """Add new entries and remove stale entries belonging to this source."""
         vector_documents: list[VectorDocument] = []
         database = self.vector_store.get()
         existing_faq_ids = {

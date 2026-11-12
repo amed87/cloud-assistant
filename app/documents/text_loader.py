@@ -5,12 +5,13 @@ from app.documents.models import TextDocument
 
 
 class TextLoader(DocumentLoader):
+    """Load a UTF-8 text file into a document model."""
 
     async def load(
         self,
         path: str,
     ) -> TextDocument:
-
+        """Read ``path`` without blocking the async event loop."""
         file_path = Path(path)
 
         content = await self._read_file(
@@ -27,7 +28,7 @@ class TextLoader(DocumentLoader):
         self,
         path: Path,
     ) -> str:
-
+        """Perform the blocking filesystem read in a worker thread."""
         import asyncio
 
         return await asyncio.to_thread(

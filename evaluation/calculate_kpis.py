@@ -1,9 +1,8 @@
-"""
-RAG Chatbot Evaluation KPI Generator
+"""Generate latency, resource, and answer-quality KPIs for the RAG chatbot.
 
-Reads evaluation output files and generates comprehensive KPIs for:
-- Latency & Load (from load-test-*.csv)
-- Answer Quality (from results_*.csv)
+Read evaluation output files and aggregate metrics from load tests,
+resource monitoring, and answer-quality results. The command-line entry
+point can save the calculated KPIs as JSON.
 """
 
 import csv
@@ -128,6 +127,7 @@ UNANSWERABLE_CATEGORIES = {
 
 
 def percentile(values, p):
+    """Return the nearest-rank percentile, or zero when no values are available."""
     if not values:
         return 0
 
@@ -137,21 +137,27 @@ def percentile(values, p):
 
 
 def calc_precision(tp, fp):
+    """Calculate precision, returning zero when there are no positive predictions."""
     return tp / (tp + fp) if (tp + fp) else 0
 
 
 def calc_coverage_recall(tp, fn):
+    """Calculate the share of answerable cases that received an answer."""
     return tp / (tp + fn) if (tp + fn) else 0
 
+
 def calc_correctness_recall(tp, fn, wrong):
+    """Calculate recall while treating wrong answers as missed correct answers."""
     return tp / (tp + fn + wrong) if (tp + fn + wrong) else 0
 
 
 def calc_specificity(tn, fp):
+    """Calculate the share of unanswerable cases correctly rejected."""
     return tn / (tn + fp) if (tn + fp) else 0
 
 
 def calc_fbeta(tp, fp, fn, wrong, beta=0.5):
+    """Calculate the F-beta score using correctness-aware recall."""
     if tp == 0:
         return 0
 
@@ -173,7 +179,7 @@ def calc_fbeta(tp, fp, fn, wrong, beta=0.5):
 
 
 def calculate_quality_kpis(results_file: Path) -> dict:
-
+    """Aggregate quality scores and answerability metrics from one results CSV."""
     data = load_csv(results_file)
     
     if not data:
@@ -986,7 +992,7 @@ def print_summary(kpis: dict) -> None:
         
         print(f"\n RESOURCE UTILIZATION")
         
-        # Chatbot Metriken
+        # Chatbot metrics.
         chatbot_cpu = r.get('chatbot_avg_cpu_pct', 0)
         chatbot_mem = r.get('chatbot_avg_mem_mb', 0)
         print(f"   Chatbot Avg CPU: {chatbot_cpu:.1f}%")
@@ -994,13 +1000,13 @@ def print_summary(kpis: dict) -> None:
         print(f"   Chatbot Avg Memory: {chatbot_mem:.1f} MB")
         print(f"   System Avg CPU: {r.get('system_avg_cpu_pct', 0):.1f}%")
         
-        # Ollama/llama-server Metriken (hochgeladene Last)
+        # Ollama/llama-server metrics (increased load).
         ollama_cpu = r.get('ollama_llama-server_exe_avg_cpu', 0)
         ollama_peak_cpu = r.get('ollama_llama-server_exe_peak_cpu', 0)
         ollama_mem = r.get('ollama_llama-server_exe_avg_mem_mb', 0)
         ollama_peak_mem = r.get('ollama_llama-server_exe_peak_mem_mb', 0)
         
-        # Nur anzeigen wenn Werte vorhanden sind
+        # Display only when values are available.
         if ollama_cpu or ollama_mem:
             print(f"\n OLLAMA / LLAMA-SERVER")
             print(f"   Avg CPU: {ollama_cpu:.1f}%")

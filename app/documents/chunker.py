@@ -2,6 +2,8 @@ from app.documents.models import DocumentChunk, TextDocument
 
 
 class DocumentChunker:
+    """Split text documents into overlapping chunks for embedding and retrieval."""
+
     def __init__(
         self,
         chunk_size: int = 1000,
@@ -25,6 +27,7 @@ class DocumentChunker:
         self,
         document: TextDocument,
     ) -> list[DocumentChunk]:
+        """Return sequential chunks while preserving source and chunk indices."""
         chunks: list[DocumentChunk] = []
 
         start = 0

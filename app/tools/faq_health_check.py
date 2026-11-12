@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 @contextmanager
 def suppress_httpx_logs(level=logging.ERROR):
-    """Temporär httpx Logging unterdrücken (für QA-Checks)."""
+    """Temporarily suppress httpx logs during QA checks."""
     httpx_logger = logging.getLogger("httpx")
     httpcore_logger = logging.getLogger("httpcore")
     
@@ -50,20 +50,20 @@ def suppress_httpx_logs(level=logging.ERROR):
 
 
 def print_progress(check_name: str, current: int, total: int):
-    """Einfacher Progress in derselben Zeile."""
+    """Print progress on the current line."""
     pct = (current / total * 100) if total > 0 else 100.0
     line = f"\r[{check_name}] {current}/{total} ({pct:.0f}%)"
     sys.stdout.write(line)
     sys.stdout.flush()
 
 def print_done(check_name: str, extra: str = ""):
-    """Abschluss mit neuer Zeile."""
+    """Print a completion message on a new line."""
     line = f"\r[{check_name}] Done ✓ {extra}\n" if extra else f"\r[{check_name}] Done ✓\n"
     sys.stdout.write(line)
     sys.stdout.flush()
 
 class FAQHealthCheckService:
-    """Quality Assurance für Vector Store vor Updates."""
+    """Validate FAQ retrieval quality in an isolated temporary vector store."""
 
     def __init__(
         self,
@@ -85,7 +85,7 @@ class FAQHealthCheckService:
         self,
         file_path: str,
     ) -> FAQHealthCheckReport:
-        """Kompletter QA-Flow mit Progress Reporting."""
+        """Run the complete QA workflow and report progress."""
         
         with suppress_httpx_logs():
             faq_document = await self.loader.load(file_path)
@@ -97,7 +97,12 @@ class FAQHealthCheckService:
                 if not faq_document.entries:
                     return FAQHealthCheckReport(
                         status="FAIL",
-                        self_retrieval=SelfRetrievalReport(0, 0, 0.0, []),
+                        self_retrieval=SelfRetrievalReport(
+                            total_documents=0,
+                            passed_count=0,
+                            rate=0.0,
+                            failed_entries=[],
+                        ),
                         duplicates=DuplicateReport(),
                         retrieval_margins=RetrievalMarginReport(),
                         embedding_health=EmbeddingHealthReport(),
@@ -131,7 +136,7 @@ class FAQHealthCheckService:
         store: VectorStore,
         faq_entries,
     ) -> FAQHealthCheckReport:
-        """Alle QA-Checks mit Progress Reporting."""
+        """Run individual health checks and aggregate their status and messages."""
 
         # 1. Self-Retrieval
         self_ret = await self._check_self_retrieval(store, faq_entries)
@@ -153,7 +158,7 @@ class FAQHealthCheckService:
             fails.append("self_retrieval")
             messages.append(
                 f"Self-Retrieval Rate {self_ret.rate:.1%} unter Threshold "
-                f"(benötigt: 95%). {len(self_ret.failed_ids)} Fragen fanden sich nicht selbst."
+                f"(benötigt: 95%). {len(self_ret.failed_entries)} Fragen fanden sich nicht selbst."
             )
 
         if not dup_report.passes():
@@ -194,7 +199,7 @@ class FAQHealthCheckService:
         store: VectorStore,
         faq_entries,
     ) -> SelfRetrievalReport:
-        """Prüft ob jede FAQ-Frage sich selbst im Top-5 findet."""
+        """Check that each FAQ question retrieves its own entry in the top five."""
 
         failed_entries = []
         total = len(faq_entries)
@@ -205,7 +210,7 @@ class FAQHealthCheckService:
             
             embedding = await self.embedding_provider.embed(entry.question)
             results = await store.search(embedding, limit=5)
-            results = await self.reranker.rerank(results, entry.question)
+            results, _ = await self.reranker.rerank(results, entry.question)
 
             found_ids = [r.id for r in results]
 
@@ -233,7 +238,7 @@ class FAQHealthCheckService:
         store: VectorStore,
         faq_entries,
     ) -> RetrievalMarginReport:
-        """Margin zwischen Rank-1 und Rank-2 für jede FAQ-Frage."""
+        """Measure score gaps between the best and second-best FAQ matches."""
 
         margins = []
         low_margin_entries = []
@@ -245,7 +250,7 @@ class FAQHealthCheckService:
             
             embedding = await self.embedding_provider.embed(entry.question)
             results = await store.search(embedding, limit=2)
-            results = await self.reranker.rerank(results, entry.question)
+            results, _ = await self.reranker.rerank(results, entry.question)
 
             if len(results) < 2:
                 continue
@@ -289,7 +294,7 @@ class FAQHealthCheckService:
         store: VectorStore,
         faq_entries,
     ) -> DuplicateReport:
-        """Pairwise L2-Distance mit Progress."""
+        """Find semantically close FAQ pairs and assess intent separability."""
 
         if len(faq_entries) < 2:
             return DuplicateReport()
@@ -300,7 +305,7 @@ class FAQHealthCheckService:
         duplicate_pairs = []
         threshold = 0.5
         
-        # Gesamtanzahl möglicher Paare für Progress-Berechnung
+        # Count all possible pairs for progress reporting.
         total_pairs = sample_size * (sample_size - 1) // 2
         pair_count = 0
 
@@ -316,24 +321,24 @@ class FAQHealthCheckService:
                 dist = np.linalg.norm(emb_i - emb_j)
 
                 if dist < threshold:
-                    # Analyse: Haben beide den gleichen Fragetyp?
+                    # Check whether both entries have the same question type.
                     type_1 = sampled_entries[i].question_type
                     type_2 = sampled_entries[j].question_type
                     
-                    # Beide haben Fragetyp definiert?
+                    # Check whether both entries have a question type.
                     both_have_type = bool(type_1 and type_2)
                     
-                    # Gleicher Fragetyp?
+                    # Check whether the question types match.
                     same_intent = (both_have_type and type_1 == type_2) if both_have_type else None
                     
-                    # Entscheidung: Kann Reranker dies trennen?
-                    # - Nur wenn BEIDE Fragetyp haben UND verschiedene Typen
+                    # The reranker can separate the entries only when both have
+                    # question types and those types differ.
                     intent_separatable = (both_have_type and type_1 != type_2)
                     
-                    # Semantisches Problem = distance zu niedrig (unabhängig vom Fragetyp)
+                    # A low distance is a semantic issue, regardless of question type.
                     semantics_issue = True
                     
-                    # Notes für klare Diagnose
+                    # Add notes to make the diagnosis clear.
                     notes_parts = []
                     notes_parts.append(f"Distance too low ({dist:.3f})")
                     
@@ -377,7 +382,7 @@ class FAQHealthCheckService:
         store: VectorStore,
         faq_entries,
     ) -> EmbeddingHealthReport:
-        """Embedding-Qualität aus gespeichertem DB-State."""
+        """Detect non-finite, zero, or unusually large embedding values."""
 
         db = store.get()
         total = len(db.get("ids", []))
@@ -434,6 +439,7 @@ class FAQHealthCheckService:
         result: FAQHealthCheckReport,
         output_dir: Path,
     ) -> Path:
+        """Write a timestamped JSON report and return its path."""
 
         output_dir.mkdir(
             parents=True,

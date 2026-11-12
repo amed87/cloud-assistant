@@ -19,7 +19,7 @@ Entpacken Sie das ZIP-Archiv, öffnen Sie PowerShell im entpackten Ordner und f�
 .\setup.ps1
 ```
 
-Die Einrichtung erstellt `.venv`, installiert die Laufzeit-Anforderungen, erstellt bei Bedarf `.env` aus `.env.example` und bewahrt eine bestehende `.env` auf. Die FAQ-Indizierung verwendet die vom Template konfigurierte mitgelieferte `data/faq.csv`.
+Die Einrichtung erstellt `.venv`, installiert die Laufzeit-Anforderungen, erstellt bei Bedarf `.env` aus `.env.example` und bewahrt eine bestehende `.env` auf. Die Deployment-Vorlage verwendet die mitgelieferte `data/faq.csv` und legt den Chroma-Index unter `data/chroma` im Paketordner ab.
 
 Installieren Sie Ollama mit winget, falls es noch nicht installiert ist:
 
@@ -33,7 +33,7 @@ Installieren Sie Ollama mit winget, falls es noch nicht installiert ist:
 .\setup.ps1 -PullModels -InitializeFaq
 ```
 
-Die Modelle sind `gemma:2b` und `nomic-embed-text`. Modell-Downloads sind optionale Einrichtungsschritte, da sie groß sein können.
+Das Setup lädt `gemma:2b` und `nomic-embed-text`. Stelle zusätzlich sicher, dass das in `.env` konfigurierte `DECISION_MODEL` in Ollama verfügbar ist; das Setup lädt dieses Modell nicht automatisch herunter. Modell-Downloads sind optionale Einrichtungsschritte, da sie groß sein können.
 
 ## Starten
 
@@ -41,4 +41,4 @@ Die Modelle sind `gemma:2b` und `nomic-embed-text`. Modell-Downloads sind option
 .\start.ps1
 ```
 
-Öffnen Sie <http://127.0.0.1:8000>. Die Demo verwendet ein lokales Chroma-Verzeichnis unter `../data/chroma` (im übergeordneten Datenordner). Stellen Sie den Server nicht ohne vorherige Absicherung der Admin-Endpunkte ins Netzwerk.
+Öffnen Sie <http://127.0.0.1:8000>. Die Demo verwendet das paketlokale Chroma-Verzeichnis `.\data\chroma`. Stellen Sie den Server nicht ohne vorherige Absicherung der Admin-Endpunkte ins Netzwerk.

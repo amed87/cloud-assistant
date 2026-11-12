@@ -32,6 +32,8 @@ from evaluation.evaluate_rag import (
 
 @dataclass(slots=True)
 class SweepResult:
+    """Confusion counts and parameters for one reranker/gate configuration."""
+
     match_bonus: float
     mismatch_penalty: float
     intent_weight: float
@@ -52,6 +54,8 @@ class SweepResult:
 
 @dataclass(slots=True)
 class CachedCase:
+    """Golden case data reused while evaluating parameter combinations."""
+
     question: str
     expected_entry: str
     chroma_results: list[SearchResult]
@@ -60,9 +64,9 @@ class CachedCase:
 
 @dataclass(frozen=True)
 class CachedRerankScores:
-    """Vorab berechnete Feature-Scores für einen Case."""
+    """Precomputed feature scores for one evaluation case."""
     
-    reranked_results: list[SearchResult]      # Sortierte Ergebnisse (ID + base_score)
+    reranked_results: list[SearchResult]      # Sorted results (ID + base score)
     decision_scores: dict[str, dict[str, float]]
     query: str                              
 
@@ -71,7 +75,7 @@ class CachedRerankScores:
         candidate: SearchResult,
         config: RerankConfig,
     ) -> float:
-        """Berechnet den finalen Score mit neuen Gewichten."""
+        """Calculate the final score using the supplied weights."""
         base = candidate.score
 
         intent_feature = IntentFeature(
@@ -100,9 +104,9 @@ class CachedRerankScores:
 
 @dataclass(frozen=True)
 class SweepParameters:
-    """Alle Kandidatenlisten für den Hyperparameter-Sweep."""
+    """Candidate values for each parameter in the hyperparameter sweep."""
     
-    # Rerank-Parameter
+    # Reranking parameters
     decision_model_candidates: list[str]
     decision_model_weight_candidates: list[float]
     decision_model_feature_names: list[str]
@@ -112,13 +116,13 @@ class SweepParameters:
     keyword_weight_candidates: list[float]
     keyword_normalization_candidates: list[int]
     
-    # Gate-Parameter
+    # Answerability-gate parameters
     score_candidates: list[float]
     gap_candidates: list[float]
     
     @property
     def num_rerank_configs(self) -> int:
-        """Anzahl semantisch einzigartiger Rerank-Konfigurationen (vor Filterung)."""
+        """Return the number of unique reranker configurations before filtering."""
         return (
             len(self.decision_model_candidates)
             * len(self.decision_model_weight_candidates) ** len(self.decision_model_feature_names)
@@ -131,17 +135,17 @@ class SweepParameters:
 
     @property
     def num_gate_configs(self) -> int:
-        """Anzahl Gate-Konfigurationen."""
+        """Return the number of answerability-gate configurations."""
         return len(self.score_candidates) * len(self.gap_candidates)
     
     @property
     def total_combinations(self) -> int:
-        """Gesamtanzahl Kombinationen vor Filterung."""
+        """Return the total number of parameter combinations before filtering."""
         return self.num_rerank_configs * self.num_gate_configs
 
 @dataclass(frozen=True)
 class RerankConfig:
-    """Reranker-Konfiguration ohne Gate-Parameter."""
+    """Reranker configuration without answerability-gate parameters."""
     decision_model: str
     decision_model_weights: dict[str, float]
     match_bonus: float
@@ -152,6 +156,7 @@ class RerankConfig:
 
 
 def precision(tp: int, fp: int) -> float:
+    """Calculate precision, returning zero when there are no predicted positives."""
     return tp / (tp + fp) if (tp + fp) else 0.0
 
 
@@ -160,6 +165,7 @@ def correctness_recall(
     fn: int,
     wrong: int,
 ) -> float:
+    """Calculate recall while counting wrong accepted entries as failures."""
     return (
         tp / (tp + fn + wrong)
         if (tp + fn + wrong)
@@ -173,7 +179,7 @@ def f05(
     fn: int,
     wrong: int,
 ) -> float:
-
+    """Calculate F0.5 from sweep counts, penalizing incorrect accepted answers."""
     p = precision(tp, fp + wrong)
     r = correctness_recall(tp, fn, wrong)
 
@@ -198,6 +204,7 @@ def f05(
 
 
 def create_reranker(config: RerankConfig) -> Reranker:
+    """Build a reranker with one named decision feature per configured prompt."""
     decision_provider = OllamaDecisionProvider(config.decision_model)
     dm_feature = DecisionModelFeature(
         weight=0.0,
@@ -231,13 +238,11 @@ def create_reranker(config: RerankConfig) -> Reranker:
 def generate_unique_rerank_configs(
     params: SweepParameters,
 ) -> Iterator[RerankConfig]:
-    """
-    Generator, der alle semantisch einzigartigen Rerank-Konfigurationen yieldet.
-    
-    Eliminiert Duplikate:
-    - intent_weight == 0 ⇒ match_bonus und mismatch_penalty irrelevant
-    - keyword_weight == 0 ⇒ keyword_normalization irrelevant  
-    - alle decision-model Gewichte == 0 ⇒ decision_model irrelevant
+    """Yield configurations while skipping parameters that cannot affect scores.
+
+    Intent bonuses and penalties are irrelevant at zero intent weight; keyword
+    normalization is irrelevant at zero keyword weight; and a decision model is
+    irrelevant when all its prompt weights are zero.
     """
     for (
         decision_model,
@@ -259,7 +264,7 @@ def generate_unique_rerank_configs(
         params.keyword_weight_candidates,
         params.keyword_normalization_candidates,
     ):
-        # Filtern von Duplikaten
+        # Filter duplicate configurations.
         if intent_weight == 0 and (match_bonus != 0 or mismatch_penalty != 0):
             continue
         if keyword_weight == 0 and keyword_normalization != params.keyword_normalization_candidates[0]:
@@ -282,9 +287,10 @@ async def run_sweep(
     cached_results: list[CachedCase],
     params: SweepParameters,
 ) -> list[SweepResult]:
+    """Evaluate every unique reranker setup against every gate threshold pair."""
     results: list[SweepResult] = []
 
-    # Generator für eindeutige Rerank-Konfigurationen
+    # Generate unique reranker configurations.
     unique_rerank_configs = list(generate_unique_rerank_configs(params))
     total_combinations = len(unique_rerank_configs) * params.num_gate_configs 
     current_combination = 0
@@ -357,6 +363,7 @@ async def run_sweep(
 
 
 async def retrieve_results(service: RagService, rows: list[dict]) -> list[CachedCase]:
+    """Retrieve each golden case once and cache base and decision-feature scores."""
     cached_results: list[CachedCase] = []
 
     print("Loading retrieval results...")
@@ -398,6 +405,7 @@ async def retrieve_results(service: RagService, rows: list[dict]) -> list[Cached
 
 
 def create_rag_service() -> RagService:
+    """Build the live RAG service using configured per-prompt decision weights."""
     settings = get_settings()
     
     embedding_provider = OllamaEmbeddingProvider()
@@ -434,7 +442,8 @@ def create_rag_service() -> RagService:
     return rag_service
 
 
-def print_results(ranked: list[SweepResult]):    
+def print_results(ranked: list[SweepResult]):
+    """Print the twenty highest-scoring parameter configurations."""
     print("")
     print("\nTop 20 configurations")
     print("=" * 80)
@@ -470,7 +479,7 @@ def generate_candidates(
     stop: float,
     step: float,
 ) -> list[float]:
-
+    """Generate an inclusive, rounded numeric sweep range."""
     count = int(round((stop - start) / step))
 
     return [
@@ -479,6 +488,7 @@ def generate_candidates(
     ]
 
 async def main() -> None:
+    """Load golden cases, run the sweep, and print its best configurations."""
     rag_service = create_rag_service()
     rows = load_cases(GOLDEN_CSV)
     cached_results = await retrieve_results(rag_service, rows)

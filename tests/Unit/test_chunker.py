@@ -1,3 +1,5 @@
+"""Verify text chunk boundaries, overlap, and invalid chunking parameters."""
+
 import pytest
 
 from app.documents.chunker import DocumentChunker

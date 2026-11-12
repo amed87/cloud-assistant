@@ -10,8 +10,7 @@ class DMSingleFeature(RankingFeature):
     parent_feature: DecisionModelFeature
 
     def score(self, query: str, candidate: SearchResult) -> float:
-        """Gibt den normalisierten Wahrscheinlichkeitswert (0.0 bis 1.0) 
-        für den spezifischen Kandidaten zurück."""
-        # Delegiert die Berechnung an das übergeordnete DecisionModelFeature
+        """Return the normalized probability (0.0 to 1.0) for this candidate."""
+        # Delegate the calculation to the parent DecisionModelFeature.
         parent_scores = self.parent_feature.score(query, candidate)
         return parent_scores.get(self.name, 0.0)
