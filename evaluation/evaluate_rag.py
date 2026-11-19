@@ -16,19 +16,14 @@ from datetime import datetime
 
 from tqdm import tqdm
 
-from app.config.content_settings import load_content_config
 from app.config.settings import get_settings
 from app.embeddings.ollama_provider import OllamaEmbeddingProvider
 from app.vectorstores.chroma import ChromaVectorStore
 from app.services.rag_service import RagService
 from app.quality.answerability.answerability_gate import AnswerabilityGate
-from app.quality.models import RetrievalResult, AnswerabilityDecision
-from app.quality.providers.decision.ollama_provider import OllamaDecisionProvider
+from app.quality.models import RetrievalResult
 from app.quality.ranking.reranker import Reranker
-from app.quality.ranking.intent_feature import IntentFeature
-from app.quality.ranking.keyword_feature import KeywordFeature
-from app.quality.ranking.decision_model_feature import DecisionModelFeature
-from app.quality.ranking.dm_single_feature import DMSingleFeature
+from app.quality.ranking.feature_factory import build_rerank_features
 
 GOLDEN_CSV = Path(__file__).resolve().parents[2] / "eval" / "data" / "golden_dataset.csv"
 OUTPUT_PATH = (Path(__file__).resolve().parents[2] / "eval" / "output"
@@ -273,43 +268,14 @@ def get_gate_entry_id(result: RetrievalResult):
 async def main() -> None:
     """Run each golden case through retrieval, reranking, and gate diagnostics."""
     settings = get_settings()
-    content_config = load_content_config()
-    
-    # Initialize components for RagService
+
+    # Initialize components for RagService — the same feature set the live
+    # chatbot uses (build_rerank_features), so the eval measures production
+    # behavior including active centroid facets.
     embedding_provider = OllamaEmbeddingProvider()
     vector_store = ChromaVectorStore()
-    decision_provider = OllamaDecisionProvider(settings.DECISION_MODEL)
-    dm_feature = DecisionModelFeature(
-        weight=0.0,
-        decision_provider=decision_provider,
-    )
-    prompt_names = list(content_config.decision_model_prompts)
-    if len(settings.DECISION_MODEL_WEIGHTS) != len(prompt_names):
-        raise ValueError(
-            "DECISION_MODEL_WEIGHTS must contain one weight for each "
-            "decision_model_prompts entry."
-        )
-    reranker_features = [
-        IntentFeature(
-            weight=settings.INTENT_WEIGHT,
-            bonus=settings.INTENT_MATCH_BONUS,
-            penalty=settings.INTENT_MISMATCH_PENALTY,
-            fallback=content_config.fragetyp_fallback,
-        ),
-        KeywordFeature(
-            weight=settings.KEYWORD_WEIGHT,
-            normalization=settings.KEYWORD_MATCH_NORMALIZATION,
-        ),
-        *(
-            DMSingleFeature(
-                name=name,
-                weight=weight,
-                parent_feature=dm_feature,
-            )
-            for name, weight in zip(prompt_names, settings.DECISION_MODEL_WEIGHTS)
-        ),
-    ]
-    reranker = Reranker(features=reranker_features, dm_feature=dm_feature)
+    features, dm_feature = build_rerank_features()
+    reranker = Reranker(features=features, dm_feature=dm_feature)
     
     # Initialize AnswerabilityGate with current settings
     answerability_gate = AnswerabilityGate(

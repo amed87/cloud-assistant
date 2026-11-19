@@ -31,11 +31,11 @@ centroid_facets:
   fragetyp:
     metadata_key: question_type
     fallback: 'Generell'
-    dm_prompt: 'Which Fragetyp (category of question) matches the user query?'
+    dm_prompt: 'Which question is a structurally valid paraphrase of the user query?'
   thema:
     metadata_key: subjects
     multi_label: true
-    dm_prompt: 'Which Thema (topic) matches the user query?'
+    dm_prompt: 'Which question shares the identical topic as the user query?'
 
 # Der Prompt für das Decision-Model-Feature des Rerankers
 decision_model_prompt: 'Which candidate question is a structurally valid paraphrase that shares the identical information requirement, constraints and intent as the user query?'

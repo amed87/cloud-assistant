@@ -1,5 +1,4 @@
 from app.config.settings import get_settings
-from app.config.content_settings import content_config
 
 from app.providers.ollama_provider import OllamaProvider
 
@@ -43,15 +42,7 @@ from app.quality.ranking.reranker import (
     Reranker,
     )
 
-from app.quality.ranking.intent_feature import (
-    IntentFeature,
-)
-
-from app.quality.ranking.keyword_feature import (
-    KeywordFeature,
-)
-
-from app.dependencies.centroids import get_centroid_features
+from app.quality.ranking.feature_factory import build_rerank_features
 from app.dependencies.providers import embedding_provider
 
 
@@ -64,20 +55,9 @@ prompt_pipeline = PromptPipeline([
     ConversationStep(),
 ])
 vector_store = ChromaVectorStore()
-features = [
-    IntentFeature(
-        weight=settings.INTENT_WEIGHT,
-        bonus=settings.INTENT_MATCH_BONUS,
-        penalty=settings.INTENT_MISMATCH_PENALTY,
-        fallback=content_config.fragetyp_fallback,
-        ),
-    KeywordFeature(
-        weight=settings.KEYWORD_WEIGHT,
-        normalization=settings.KEYWORD_MATCH_NORMALIZATION,
-    ),
-    *get_centroid_features(),
-    ]
-reranker = Reranker(features)
+# Der Chat-Pfad ruft keine Decision-Model-Prompts auf.
+features, dm_feature = build_rerank_features(include_decision_model=False)
+reranker = Reranker(features, dm_feature=dm_feature)
 answerability_gate = AnswerabilityGate(settings.RAG_MIN_SCORE, settings.RAG_MIN_SCORE_GAP)
 rag_service = RagService(
     embedding_provider=embedding_provider,

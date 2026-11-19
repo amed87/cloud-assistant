@@ -9,17 +9,19 @@ from pathlib import Path
 from app.config.content_settings import content_config
 from evaluation.evaluate_rag import GOLDEN_CSV, load_cases
 
-from .calibration import calibrate
+from .calibration import calibrate, resolve_base_weights
 from .cache import build_cache, save_cache, load_cache
 from .finalize import finalize
 from .matrices import build_matrices
 from .search import run_search
 from .service import create_rag_service
+from .tuning_config import load_tuning_config
 
 
 # Artefakte liegen unter <repo>/eval/output/Tuning (unabhängig vom cwd).
 # parents[3], weil dieses Modul eine Ebene tiefer liegt als evaluate_rag.py.
 OUTPUT_DIR = Path(__file__).resolve().parents[3] / "eval" / "output" / "Tuning"
+REPO_DIR = Path(__file__).resolve().parents[2]
 
 
 def main() -> None:
@@ -27,6 +29,10 @@ def main() -> None:
     parser.add_argument("--trials", type=int, default=2000)
     parser.add_argument("--output", "-o", type=Path,
                         default=OUTPUT_DIR / "recommended_settings.json")
+    parser.add_argument("--config", type=Path,
+                        default=REPO_DIR / "tuning_config.yaml",
+                        help="Tuning-Gruppen-Konfiguration (yaml); fehlt sie, "
+                             "werden alle Gruppen getunt.")
     parser.add_argument("--study-db", type=str, default=None,
                         help="Optuna storage URL, e.g. sqlite:///tuning.db (omit: in-memory)")
     parser.add_argument("--seed", type=int, default=None,
@@ -43,6 +49,10 @@ def main() -> None:
                              "golden cases live. Required after changes to the "
                              "FAQ database, features, or reranker code.")
     args = parser.parse_args()
+
+    tune_config = load_tuning_config(args.config)
+    print(f"Tuning groups: intent={tune_config.intent} keyword={tune_config.keyword} "
+          f"decision_model={tune_config.decision_model} centroid={tune_config.centroid}")
 
     rows = load_cases(GOLDEN_CSV)
     prompt_names = list(content_config.decision_model_prompts)
@@ -71,6 +81,7 @@ def main() -> None:
 
     print(f"Sampler seed: {run_seed}" if run_seed is not None else "Sampler seed: None")
     matrices = build_matrices(cases)
+    base = resolve_base_weights(cases, prompt_names)
 
     cal = calibrate(cases, matrices, prompt_names)
     if not cal["passed"]:
@@ -86,9 +97,11 @@ def main() -> None:
 
     study_name = f"tuning_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     study = run_search(cases, matrices, prompt_names, n_trials=args.trials,
-                       storage=args.study_db, study_name=study_name, seed=args.seed)
+                       storage=args.study_db, study_name=study_name, seed=run_seed,
+                       config=tune_config, base=base)
 
-    report = finalize(cases, matrices, prompt_names, study)
+    report = finalize(cases, matrices, prompt_names, study,
+                      config=tune_config, base=base)
     args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 
     print(f"\nBest F0.5: {report['best_f05']:.3f} (trial {report['best_trial']})")

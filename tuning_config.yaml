@@ -1,0 +1,14 @@
+# Welche Parametergruppen das Tuning optimiert (siehe
+# evaluation/parameter_tuning/tuning_config.py). false = Gruppe wird auf
+# dem Gewichtssnapshot des Caches (bzw. den aktuellen .env-Werten bei
+# frischem Cache) festgehalten und unverändert mitempfohlen.
+#
+# Neu ab TODO-Jahr: Das Centroid-Tuning optimiert die Facetten-Gewichte
+# (CENTROID_FACET_WEIGHTS) sowie CENTROID_MATCH_BONUS/-PENALTY. Voraussetzung
+# dafür ist, dass Zentroiden existieren (DB-Update gelaufen) und der
+# Tuning-Cache danach gebaut wurde (--refresh-cache nach DB-Updates).
+tune:
+  intent: true
+  keyword: true
+  decision_model: false
+  centroid: true

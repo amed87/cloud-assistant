@@ -15,15 +15,14 @@ from .matrices import FeatureMatrices
 
 TOLERANCE = 1e-6
 
-def calibrate(cases: list[CaseCache], matrices: FeatureMatrices,
-              prompt_names: list[str], n_samples: int = 15) -> dict:
-    """Compare matrix scores against live reranked scores on a sample.
+
+def resolve_base_weights(cases: list[CaseCache], prompt_names: list[str]) -> dict:
+    """Merged, snapshot-first weights used by calibration, search, and finalize.
 
     With a persisted cache the live scores were produced with the weights
-    snapshot stored at cache build time — so calibration reconstructs with
-    exactly those weights, independent of the current .env. Without a
-    snapshot (fresh retrieval) the current settings weights apply, which is
-    the classic self-consistency check.
+    snapshot stored at cache build time — so all fixed group values
+    reconstruct from exactly those weights, independent of the current .env.
+    Without a snapshot (fresh retrieval) the current settings weights apply.
     """
     settings = get_settings()
     if len(settings.DECISION_MODEL_WEIGHTS) != len(prompt_names):
@@ -41,23 +40,41 @@ def calibrate(cases: list[CaseCache], matrices: FeatureMatrices,
         )
 
     if snapshot is not None:
-        weights = {
+        return {
             "intent_weight": snapshot["intent_weight"],
             "intent_bonus": snapshot["intent_bonus"],
             "intent_penalty": snapshot["intent_penalty"],
             "kw_weight": snapshot["kw_weight"],
             "dm_weights": list(snapshot["dm_weights"]),
             "normalization": int(snapshot["normalization"]),
+            "centroid_facet_weights": list(snapshot["centroid_facet_weights"]),
+            "centroid_bonus": snapshot["centroid_bonus"],
+            "centroid_penalty": snapshot["centroid_penalty"],
         }
-    else:
-        weights = {
-            "intent_weight": settings.INTENT_WEIGHT,
-            "intent_bonus": settings.INTENT_MATCH_BONUS,
-            "intent_penalty": settings.INTENT_MISMATCH_PENALTY,
-            "kw_weight": settings.KEYWORD_WEIGHT,
-            "dm_weights": list(settings.DECISION_MODEL_WEIGHTS),
-            "normalization": int(settings.KEYWORD_MATCH_NORMALIZATION),
-        }
+    return {
+        "intent_weight": settings.INTENT_WEIGHT,
+        "intent_bonus": settings.INTENT_MATCH_BONUS,
+        "intent_penalty": settings.INTENT_MISMATCH_PENALTY,
+        "kw_weight": settings.KEYWORD_WEIGHT,
+        "dm_weights": list(settings.DECISION_MODEL_WEIGHTS),
+        "normalization": int(settings.KEYWORD_MATCH_NORMALIZATION),
+        "centroid_facet_weights": list(settings.CENTROID_FACET_WEIGHTS),
+        "centroid_bonus": settings.CENTROID_MATCH_BONUS,
+        "centroid_penalty": settings.CENTROID_MATCH_PENALTY,
+    }
+
+
+def calibrate(cases: list[CaseCache], matrices: FeatureMatrices,
+              prompt_names: list[str], n_samples: int = 15) -> dict:
+    """Compare matrix scores against live reranked scores on a sample.
+
+    With a persisted cache the live scores were produced with the weights
+    snapshot stored at cache build time — so calibration reconstructs with
+    exactly those weights, independent of the current .env. Without a
+    snapshot (fresh retrieval) the current settings weights apply, which is
+    the classic self-consistency check.
+    """
+    weights = resolve_base_weights(cases, prompt_names)
 
     norm_key = int(weights["normalization"])
     if norm_key not in matrices.keyword:
@@ -73,6 +90,9 @@ def calibrate(cases: list[CaseCache], matrices: FeatureMatrices,
         kw_weight=weights["kw_weight"],
         dm_weights=list(weights["dm_weights"]),
         normalization=norm_key,
+        centroid_facet_weights=list(weights["centroid_facet_weights"]),
+        centroid_bonus=weights["centroid_bonus"],
+        centroid_penalty=weights["centroid_penalty"],
     )
 
     step = max(1, len(cases) // n_samples)

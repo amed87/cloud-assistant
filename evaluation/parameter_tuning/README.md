@@ -40,11 +40,44 @@ adressiert:
 
 | Phase | Modul | Was passiert |
 |-------|-------|--------------|
-| 0 – Cache | `cache.py` + `service.py` | Einmal Retrieval pro Golden-Case (`quick_retrieve(eval=True)`); sammelt Base-Scores, Intent-Faktoren, Keyword-Faktoren (je Normalisierung), DM-Scores pro Prompt. Der einzige teure Teil (Ollama/Chroma). |
+| 0 – Cache | `cache.py` + `service.py` | Einmal Retrieval pro Golden-Case (`quick_retrieve(eval=True)`); sammelt Base-Scores, Intent-Faktoren, Keyword-Faktoren (je Normalisierung), DM-Scores pro Prompt **sowie Centroid-Match-Zustände je Facette**. Der einzige teure Teil (Ollama/Chroma). |
 | 1 – Matrizen | `matrices.py` | Cases zu dichten numpy-Arrays stapeln (`(C, K, …)`). |
 | 2 – Suche | `search.py` | Optuna-Study über Reranker-Gewichte; Gate-Parameter sind **nicht** im Suchraum. |
 | 3 – Landscape | `landscape.py` | Analytische F0.5-Fläche über alle (min_score, min_gap)-Paare (Mittelpunkt-Grid); Cross-Check gegen das echte `AnswerabilityGate`. |
 | 4 – Finalisierung | `finalize.py` | Sieger wählen, Plateau-Check, **Jitter-robuste Threshold-Auswahl**, Boundary-Warnings, Export. |
+
+## Tuning-Gruppen konfigurieren
+
+`tuning_config.yaml` (im code-Root, Default liegt neben der `.env`) legt fest,
+welche Gruppen gesampelt werden:
+
+    ```yaml
+    tune:
+      intent: true          # INTENT_WEIGHT/-BONUS/-PENALTY
+      keyword: true         # KEYWORD_WEIGHT + KEYWORD_MATCH_NORMALIZATION
+      decision_model: true  # ein Gewicht pro decision_model_prompts-Eintrag
+      centroid: true        # CENTROID_FACET_WEIGHTS + MATCH_BONUS/-PENALTY
+    ```
+
+- `false` = Gruppe wird **nicht gesampelt**, sondern auf den Snapshot-Werten
+  des Caches (frischer Cache: den aktuellen `.env`-Werten) festgehalten.
+- Festgehaltene Gruppen erscheinen trotzdem vollständig in der
+  `recommendation` des Reports — beim Übertragen in die `.env` wird also
+  nichts aus Versehen auf einen alten Wert zurückgesetzt. `tuned_groups` im
+  Report dokumentiert, was tatsächlich gesampelt wurde.
+- Die Gate-Thresholds sind keine Gruppe: sie werden pro Trial aus der
+  Threshold-Landschaft abgeleitet und stehen immer in der Empfehlung.
+- **Centroid-Tuning:** Die Centroid-Parameter hängen an gecachten
+  Match-Zuständen (Query-Facetten-Label ↔ Kandidaten-Label). Diese werden beim
+  Cache-Build aus den aktiven `CentroidMatchFeature`s abgeleitet — Voraussetzung
+  ist daher, dass Zentroide existieren (DB-Update gelaufen) und
+  `CENTROID_MATCH_BONUS`/`_PENALTY > 0` sind. Der Cache-Build primes den
+  Facetten-Klassifikator selbst, die Zustände sind also unabhängig von den
+  aktuellen `CENTROID_FACET_WEIGHTS`.
+- `CENTROID_CONFIDENCE_FLOOR`/`_MARGIN` werden **nicht** getunt (sie steuern
+  die Diskretisierung der gecachten Zustände, nicht die Score-Gewichtung).
+  Eine Änderung macht den Cache unbrauchbar → Neubau mit `--refresh-cache`
+  nach dem Umstellen in der `.env`.
 
 ## Benutzung
 
@@ -78,7 +111,8 @@ empfohlene Schwelle trotzdem nahe an einem Grenzfall.
 
 Die `recommendation`-Keys entsprechen 1:1 den `settings.*`-Namen
 (INTENT_WEIGHT, INTENT_MATCH_BONUS, INTENT_MISMATCH_PENALTY, KEYWORD_WEIGHT,
-KEYWORD_MATCH_NORMALIZATION, DECISION_MODEL_WEIGHTS, RAG_MIN_SCORE,
+KEYWORD_MATCH_NORMALIZATION, DECISION_MODEL_WEIGHTS, CENTROID_FACET_WEIGHTS,
+CENTROID_MATCH_BONUS, CENTROID_MATCH_PENALTY, RAG_MIN_SCORE,
 RAG_MIN_SCORE_GAP) und können direkt ins Config-Repository übernommen werden.
 
 ## Interpretation
@@ -111,10 +145,15 @@ Systems einmal verifiziert werden:
     weiteres Kriterium in `evaluate_quick`).
 3. `IntentFeature` gibt bei Mismatch einen **negativen** Faktor zurück, dessen
     Betrag die (positive) Penalty-Magnitude ist; die Detection in `cache.py`
-    (`> 0` → Bonus, `< 0` → Penalty`) hängt daran.
+    (`> 0` → Bonus, `< 0` → Penalty`) hängt daran — analog leitet der
+    Centroid-Zustand aus dem Vorzeichen des Feature-Scores ab.
 4. Fehlende Scores sind `0.0`, niemals `None`.
 5. `rr.feature_scores` ist pro Kandidat-Id (mit Versionssuffix) und pro
     Prompt-Key getastet.
+6. Die Reranker-Verdrahtung kommt aus `app.quality.ranking.feature_factory`
+    — dieselbe Factory wie für Server und Evaluation. Direkte
+    IntentFeature/KeywordFeature/DMSingleFeature-Instanziierung in anderen
+    Modulen wäre ein Divergenz-Risiko für die Kalibrierungs-Prämisse.
 
 ## Abhängigkeiten
 
@@ -125,7 +164,25 @@ Systems einmal verifiziert werden:
 
 ## Nicht im Umfang
 
-Latency-/Resource-KPIs, Kategorie-Gewichtung der Objective, Persistenz des
-Retrieval-Caches (bei Bedarf: `--cache-file`-Flag nachrüsten), Holdout-Split
+Latency-/Resource-KPIs, Kategorie-Gewichtung der Objective, Holdout-Split
 (bewusst weggelassen, da Overfitting aufs KB gewollt ist; den Golden-Set-Stand
 daher im Report-Header mitloggen, sobald Datensätze versioniert werden).
+
+## Retrigger-Regeln
+
+Der persistente Cache (`--cache`, Default `eval/output/Tuning/tuning_case_cache.json`)
+wird automatisch verworfen (Neubau mit frischen Ollama-Abrufen), sobald:
+
+- die Golden-Rows sich ändern (Reihenfolge oder Fragetext),
+- das Decision-Model-Prompt-Set sich ändert,
+- Normalisierungswerte fehlen,
+- der Cache vor der Centroid-Erweiterung gebaut wurde,
+- `CENTROID_CONFIDENCE_FLOOR`/`_MARGIN` seit dem Build geändert wurden
+  (die Match-Zustände sind gegen genau diese Werte diskretisiert).
+
+Gewicht-Differenzen zwischen Snapshot und jetziger `.env` sind **kein**
+Abbruch, sondern ein Hinweis: Kalibrierung und Festhaltung deaktivierter
+Gruppen vergleichen gegen den Snapshot.
+
+Nach jedem Update der Wissensdatenbank: `--refresh-cache` (neue Fragen, neue
+Zentroiden → neue Match-Zustände).

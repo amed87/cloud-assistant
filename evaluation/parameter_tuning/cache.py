@@ -13,12 +13,12 @@ sobald sich FAQ-Datenbank, Features oder Code ändern.
 """
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
-from app.config.content_settings import load_content_config
+from app.config.content_settings import content_config, load_content_config
 from app.config.settings import get_settings
 from app.quality.ranking.keyword_feature import KeywordFeature
 
@@ -44,6 +44,10 @@ class CaseCache:
     reranked_scores: np.ndarray    # (K,) live final scores, aligned to ids
     reranked_top_id: str | None    # bare id of the live top-1 candidate
     weights_snapshot: dict | None = None  # settings weights at cache build
+    # Facet name -> (K,) match state per candidate: +1 label match, -1 label
+    # mismatch, 0 neutral. Weight-independent, but depends on the cascade
+    # floor/margin (snapshotted and validated on load) and the centroids.
+    centroid: dict[str, np.ndarray] = field(default_factory=dict)
 
 async def build_cache(rows: list[dict], rag_service) -> list[CaseCache]:
     """Retrieve every golden case once and extract all feature inputs."""
@@ -63,6 +67,8 @@ async def build_cache(rows: list[dict], rag_service) -> list[CaseCache]:
 
         print(f"\r  case {i}/{len(rows)}", end="", flush=True)
 
+        centroid = await _record_centroid_states(rag_service, question, cands)
+
         base, bonus, penalty, keyword, dm = [], [], [], {}, []
         for cand in cands:
             breakdown = rr.feature_scores.get(cand.id)
@@ -72,23 +78,33 @@ async def build_cache(rows: list[dict], rag_service) -> list[CaseCache]:
                     f"(question: {question!r})"
                 )
 
-            if "IntentFeature" not in breakdown:
+            # Weight-0-Features sind aus dem Reranker gedroppt (kein
+            # Breakdown-Eintrag): nur aktive Features werden gefordert,
+            # gedroppte laufen als neutrale Defaults im Cache weiter.
+            if settings.INTENT_WEIGHT != 0 and "IntentFeature" not in breakdown:
                 raise ValueError(
                     f"feature_scores[{cand.id!r}] lacks 'IntentFeature'; "
                     "reranker output format changed?"
                 )
-            factor = float(breakdown["IntentFeature"])
+            factor = float(breakdown.get("IntentFeature", 0.0))
             bonus.append(factor > 0)
             penalty.append(factor < 0)
 
-            missing = [p for p in prompts if p not in breakdown]
+            # Gewichte-0-Prompts sind aus dem Reranker gedroppt und fehlen im
+            # Breakdown: nur aktive Prompts werden gefordert, inaktive als 0
+            # gecacht (ihr dm-Gewicht pinnt sie ohnehin auf 0).
+
+            missing = [
+                p for p, w in zip(prompts, settings.DECISION_MODEL_WEIGHTS)
+                if w != 0 and p not in breakdown
+            ]
             if missing:
                 raise ValueError(
-                    f"feature_scores[{cand.id!r}] misses decision prompts "
+                    f"feature_scores[{cand.id!r}] misses active decision prompts "
                     f"{missing}; module-level content_config may differ from "
                     "CONTENT_CONFIG_FILE"
                 )
-            dm.append([float(breakdown[p]) for p in prompts])
+            dm.append([float(breakdown.get(p, 0.0)) for p in prompts])
 
             for n in NORMALIZATION_CANDIDATES:
                 kf = KeywordFeature(weight=1.0, normalization=n)
@@ -123,10 +139,54 @@ async def build_cache(rows: list[dict], rag_service) -> list[CaseCache]:
             dm=np.array(dm, dtype=float),
             reranked_scores=np.array(reranked, dtype=float),
             reranked_top_id=top.id.partition(":")[0] if top else None,
+            centroid=centroid,
         ))
 
     print()  # close the \r progress line
     return cases
+
+
+async def _record_centroid_states(rag_service, question: str, cands) -> dict[str, np.ndarray]:
+    """Match states (+1/-1/0) per declared facet and candidate.
+
+    The classifier is primed explicitly with a fresh query embedding, so the
+    states are independent of the current CENTROID_FACET_WEIGHTS (weight-0
+    features are dropped by the reranker and would never prime). The states
+    only reflect the cascade's floor/margin — snapshotted and validated on
+    load. Requires CENTROID_MATCH_BONUS/_PENALTY > 0, since the sign of the
+    raw score distinguishes match from mismatch.
+    """
+    from app.dependencies.centroids import get_centroid_features
+
+    settings = get_settings()
+    features = get_centroid_features()
+    if not features:
+        return {}
+    if settings.CENTROID_MATCH_BONUS <= 0 or settings.CENTROID_MATCH_PENALTY <= 0:
+        raise ValueError(
+            "CENTROID_MATCH_BONUS and CENTROID_MATCH_PENALTY must be > 0 "
+            "while building the tuning cache — the match state is derived "
+            "from the sign of the raw feature score."
+        )
+
+    embedding = await rag_service.embedding_provider.embed(question)
+    for feature in features:
+        # Alle Facetten-Features teilen sich einen Classifier; ein Prime
+        # klassifiziert jede deklarierte Facette (idempotent pro Query).
+        await feature.prime(question, embedding)
+
+    states: dict[str, np.ndarray] = {}
+    for feature in features:
+        states[feature.facet_name] = np.array(
+            [
+                # sign of the raw score: +bonus => match, -penalty => mismatch
+                1.0 if (raw := feature.score(query=question, candidate=cand)) > 0
+                else (-1.0 if raw < 0 else 0.0)
+                for cand in cands
+            ],
+            dtype=float,
+        )
+    return states
 
 
 # ------------------------------------------------------------ Persistenz
@@ -139,14 +199,7 @@ def save_cache(cases: list[CaseCache], path: Path, sampler_seed: int | None = No
         # Sampler-Seed dieses Laufes: bei geladenem Cache wiederverwendet,
         # damit dieselbe Matrix + derselbe Seed reproduzierbar bleibt.
         "sampler_seed": sampler_seed,
-        "weights_snapshot": {
-            "intent_weight": settings.INTENT_WEIGHT,
-            "intent_bonus": settings.INTENT_MATCH_BONUS,
-            "intent_penalty": settings.INTENT_MISMATCH_PENALTY,
-            "kw_weight": settings.KEYWORD_WEIGHT,
-            "normalization": int(settings.KEYWORD_MATCH_NORMALIZATION),
-            "dm_weights": list(settings.DECISION_MODEL_WEIGHTS),
-        },
+        "weights_snapshot": weights_snapshot(settings),
         "n_cases": len(cases),
         "cases": [
             {
@@ -163,12 +216,42 @@ def save_cache(cases: list[CaseCache], path: Path, sampler_seed: int | None = No
                 "dm": case.dm.tolist(),
                 "reranked_scores": case.reranked_scores.tolist(),
                 "reranked_top_id": case.reranked_top_id,
+                "centroid": {
+                    name: values.tolist() for name, values in case.centroid.items()
+                },
             }
             for case in cases
         ],
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def weights_snapshot(settings) -> dict:
+    """All weight-like settings that define the cached feature states."""
+    return {
+        "intent_weight": settings.INTENT_WEIGHT,
+        "intent_bonus": settings.INTENT_MATCH_BONUS,
+        "intent_penalty": settings.INTENT_MISMATCH_PENALTY,
+        "kw_weight": settings.KEYWORD_WEIGHT,
+        "normalization": int(settings.KEYWORD_MATCH_NORMALIZATION),
+        "dm_weights": list(settings.DECISION_MODEL_WEIGHTS),
+        "centroid_facet_weights": list(settings.CENTROID_FACET_WEIGHTS),
+        "centroid_bonus": settings.CENTROID_MATCH_BONUS,
+        "centroid_penalty": settings.CENTROID_MATCH_PENALTY,
+        "centroid_floor": settings.CENTROID_CONFIDENCE_FLOOR,
+        "centroid_margin": settings.CENTROID_CONFIDENCE_MARGIN,
+        # Der DM-Fallback liefert die Labels für unsichere Facetten und
+        # fließt damit in die gecachten Match-Zustände ein.
+        "centroid_dm_fallback": bool(settings.CENTROID_DM_FALLBACK),
+        # Die DM-Labels hängen an den Facetten-Prompts — Prompt-Wechsel
+        # müssen den Cache ungültig machen.
+        "centroid_dm_prompts": [
+            list(pair) for pair in sorted(
+                (name, facet.dm_prompt) for name, facet in content_config.centroid_facets.items()
+            )
+        ],
+    }
 
 
 def load_cache(
@@ -180,9 +263,10 @@ def load_cache(
 
     Returns ``(None, None)`` when the cache is missing, stale, or mismatched
     — the caller then rebuilds. Validity checks: same golden rows (order and
-    text), all normalization candidates present, and the cached decision
-    matrix must match the current prompt set. Any mismatch forces a fresh
-    build — never tune on silently stale inputs.
+    text), all normalization candidates present, the cached decision
+    matrix must match the current prompt set, and the cascade floor/margin
+    must be unchanged (they are baked into the cached match states). Any
+    mismatch forces a fresh build — never tune on silently stale inputs.
     """
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -202,15 +286,24 @@ def load_cache(
         return None, None
 
     settings = get_settings()
-    current = {
-        "intent_weight": settings.INTENT_WEIGHT,
-        "intent_bonus": settings.INTENT_MATCH_BONUS,
-        "intent_penalty": settings.INTENT_MISMATCH_PENALTY,
-        "kw_weight": settings.KEYWORD_WEIGHT,
-        "normalization": int(settings.KEYWORD_MATCH_NORMALIZATION),
-        "dm_weights": list(settings.DECISION_MODEL_WEIGHTS),
-    }
-    if snapshot != current:
+    current = weights_snapshot(settings)
+    if snapshot == current:
+        pass
+    else:
+        stale_keys = [key for key in ("centroid_floor", "centroid_margin",
+                                      "centroid_dm_fallback",
+                                      "centroid_dm_prompts")
+                      if snapshot.get(key) != current[key]]
+        if stale_keys:
+            # Die gepixelten Match-States hängen an Floor/Margin, dm_fallback
+            # und Prompts — andere Werte machen den Cache inhaltlich falsch,
+            # keine Randnotiz, sondern rebuild.
+            print(
+                "  cache was built with stale classification settings "
+                f"(changed: {', '.join(stale_keys)}); the match states no "
+                "longer match the .env — rebuilding."
+            )
+            return None, None
         print(
             "  NOTE: cache was built with different .env weights than the "
             "current settings; calibration compares against the snapshot."
@@ -218,11 +311,18 @@ def load_cache(
 
     raw_cases = data.get("cases", [])
     if len(raw_cases) != len(rows):
-        return None
+        return None, None
+
+    if "centroid" not in raw_cases[0] or "centroid_facet_weights" not in snapshot:
+        print(
+            "  cache predates the centroid feature states; rebuilding. "
+            "(The new cache also records per-facet match states.)"
+        )
+        return None, None
 
     for raw, row in zip(raw_cases, rows):
         if raw.get("question") != row["frage"]:
-            return None
+            return None, None
 
     cases: list[CaseCache] = []
     for raw in raw_cases:
@@ -230,12 +330,12 @@ def load_cache(
         missing_norm = [n for n in NORMALIZATION_CANDIDATES if n not in keyword]
         if missing_norm:
             print(f"  cache misses normalization values {missing_norm}; rebuilding.")
-            return None
+            return None, None
 
         dm = np.array(raw["dm"], dtype=float)
         if dm.shape[1] != len(prompts):
             print(f"  cache was built for a different prompt set; rebuilding.")
-            return None
+            return None, None
 
         cases.append(CaseCache(
             question=raw["question"],
@@ -252,5 +352,12 @@ def load_cache(
             reranked_scores=np.array(raw["reranked_scores"], dtype=float),
             reranked_top_id=raw["reranked_top_id"],
             weights_snapshot=snapshot,
+            # Ältere Caches (pre-Centroid) haben kein "centroid" → leer,
+            # was in matrices/scores neutral übersetzt wird. Sobald centroid
+            # getunt werden soll, erzwingt dasimplizit einen frischen Build.
+            centroid={
+                name: np.array(values, dtype=float)
+                for name, values in (raw.get("centroid") or {}).items()
+            },
         ))
     return cases, data.get("sampler_seed")
