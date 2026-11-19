@@ -191,6 +191,9 @@ def _append_csv_rows(
     header: list[str] | str,
     rows: list[list[object]],
 ) -> None:
+    # Zielordner (z. B. eval/output/Loadtest) erst beim ersten Messwert anlegen.
+    parent = Path(csv_path).parent
+    parent.mkdir(parents=True, exist_ok=True)
     with open(csv_path, "a", newline="", encoding="utf-8") as file:
         try:
             if os.path.getsize(csv_path) == 0:

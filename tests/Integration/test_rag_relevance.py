@@ -33,7 +33,7 @@ async def rag_service(tmp_path, monkeypatch) -> AsyncGenerator[RagService, None]
     settings = get_settings()
     temp_path = tmp_path / "rag-relevance-chroma"
     temp_path.mkdir()
-    monkeypatch.setattr(settings, "CHROMA_PATH", str(temp_path))
+    monkeypatch.setattr(settings, "DB_PATH", str(temp_path))
     monkeypatch.setattr(settings, "CHROMA_COLLECTION", "rag-relevance-test")
 
     embedding_provider = OllamaEmbeddingProvider()

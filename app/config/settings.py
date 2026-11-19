@@ -22,9 +22,18 @@ class Settings(BaseSettings):
 
     NUMBER_OF_TURNS: int = 5
 
-    CHROMA_PATH: str = "../data/chroma"
     CHROMA_COLLECTION: str = "faq-bot"
     CHROMA_TEMP_PATH: str = "./temp_qa_db"
+    DB_PATH: str = "../data/chroma"          # Wurzel der lokalen Wissensdatenbank (Chroma-Ordner, Zentroiden)
+
+    # Query-Seitige Facetten-Klassifikation über Zentroide (Cascade).
+    CENTROID_FILE_NAME: str = "centroids.json"   # liegt unter DB_PATH
+    CENTROID_CONFIDENCE_FLOOR: float = 0.30      # nötige Cosine-Ähnlichkeit zum Top-Label
+    CENTROID_CONFIDENCE_MARGIN: float = 0.05     # nötiger Abstand Top1 - Top2
+    CENTROID_DM_FALLBACK: bool = True            # unsichere Facetten: ein Decision-Model-Call
+    CENTROID_FACET_WEIGHTS: list[float] = [0.0]  # ein Gewicht pro centroid_facets-Eintrag (Reihenfolge); 0 = Feature aus
+    CENTROID_MATCH_BONUS: float = 0.15
+    CENTROID_MATCH_PENALTY: float = 0.10
 
     RAG_TOP_K: int = 5
     RAG_MIN_SCORE: float = 0.3
@@ -41,7 +50,7 @@ class Settings(BaseSettings):
 
     ENABLE_PROFILER: bool = True
     PROFILER_SAMPLE_RATE: float = 0.1
-    PROFILER_OUTPUT_PATH: str = "./load-profiler.html"
+    PROFILER_OUTPUT_PATH: str = "../eval/output/Loadtest/load-profiler.html"
     PROFILER_OUTPUT_FORMAT: str = "html"
     PROFILER_RUN_ID: str | None = None
     

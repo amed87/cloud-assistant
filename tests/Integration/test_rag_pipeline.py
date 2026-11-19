@@ -15,7 +15,7 @@ from app.vectorstores.chroma import ChromaVectorStore
 @pytest.mark.asyncio
 async def test_imported_document_can_be_retrieved(tmp_path, monkeypatch) -> None:
     settings = get_settings()
-    monkeypatch.setattr(settings, "CHROMA_PATH", str(tmp_path / "chroma"))
+    monkeypatch.setattr(settings, "DB_PATH", str(tmp_path / "chroma"))
     monkeypatch.setattr(settings, "CHROMA_COLLECTION", "rag-pipeline-test")
 
     document_id = f"kubernetes-test-{uuid4()}"

@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime
 
+from tqdm import tqdm
+
 from app.config.content_settings import load_content_config
 from app.config.settings import get_settings
 from app.embeddings.ollama_provider import OllamaEmbeddingProvider
@@ -29,7 +31,8 @@ from app.quality.ranking.decision_model_feature import DecisionModelFeature
 from app.quality.ranking.dm_single_feature import DMSingleFeature
 
 GOLDEN_CSV = Path(__file__).resolve().parents[2] / "eval" / "data" / "golden_dataset.csv"
-OUTPUT_PATH = Path(__file__).resolve().parents[2] / "eval" / "output" / f"results_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
+OUTPUT_PATH = (Path(__file__).resolve().parents[2] / "eval" / "output"
+               / "Qualitätsevaluation" / f"results_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv")
 
 # Known, accepted limitations of the current architecture.
 KNOWN_FALSE_POSITIVES = {"fast_treffer"}
@@ -328,7 +331,9 @@ async def main() -> None:
 
     # First pass: Run all retrievals once and collect results
     case_results: list[CaseResult] = []
-    for row in rows:
+    progress = tqdm(rows, desc="Evaluating", unit="case", leave=False)
+    ok_count = 0
+    for row in progress:
         question = row["frage"]
         expected_entry = row["erwartete_entry_id"].strip()
         
@@ -430,8 +435,12 @@ async def main() -> None:
         
         case_result.overall_verdict = classify_overall(case_result, expected_entry) or "ok"
         case_result.verdict = case_result.overall_verdict
-        
+
         case_results.append(case_result)
+        ok_count += case_result.overall_verdict == "ok"
+        progress.set_postfix(ok=f"{ok_count}/{len(case_results)}", verdict=case_result.overall_verdict[:10])
+
+    progress.close()
 
     # Print detailed results table
     print(f"\n{'Question':<35} {'Category':<20} {'Retrieval':>10} {'Reranker':>10} {'Gate':>10}  Overall")

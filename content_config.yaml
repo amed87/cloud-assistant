@@ -19,6 +19,24 @@ fragetyp_filter:
   Prozess: '\b(wie\b|\bum\b|\bbeantrage\b|\babgeben\b|\banleitung\b|\bschritt\b|\bausfüllen\b|\baufrufen\b)'
 fragetyp_fallback: 'Generell'
 
+# Query-seitige Facetten-Klassifikation über Zentroiden (gebildet aus den
+# Frage-Embeddings der Wissensbasis, automatisch beim DB-Update neu berechnet).
+# Jede Facette wird im Reranker als eigenes Feature über ihr Gewicht in der
+# ENV (CENTROID_FACET_WEIGHTS, Reihenfolge wie hier) ein-/ausgeschaltet –
+# Gewicht 0 = Feature inactive. Ist die Zentroid-Ähnlichkeit unsicher
+# (CENTROID_CONFIDENCE_FLOOR / _MARGIN in der ENV), klassifiziert optional
+# ein einzelner Decision-Model-Call die Query in die Labels der Facette.
+# metadata_key benennt das FAQ-Feld (und Metadata-Schlüssel) der Kandidaten.
+centroid_facets:
+  fragetyp:
+    metadata_key: question_type
+    fallback: 'Generell'
+    dm_prompt: 'Which Fragetyp (category of question) matches the user query?'
+  thema:
+    metadata_key: subjects
+    multi_label: true
+    dm_prompt: 'Which Thema (topic) matches the user query?'
+
 # Der Prompt für das Decision-Model-Feature des Rerankers
 decision_model_prompt: 'Which candidate question is a structurally valid paraphrase that shares the identical information requirement, constraints and intent as the user query?'
 alt: 'Which of these questions has the same meaning as the query?'

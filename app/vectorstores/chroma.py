@@ -22,7 +22,7 @@ class ChromaVectorStore(VectorStore):
         settings = get_settings()
 
         self.client = PersistentClient(
-            path=settings.CHROMA_PATH,
+            path=settings.DB_PATH,
         )
 
         self.collection = self.client.get_or_create_collection(

@@ -24,6 +24,9 @@ from datetime import datetime
 SCRIPT_DIR = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = SCRIPT_DIR.parent
 EVAL_OUTPUT = PROJECT_ROOT / "eval" / "output"
+QUALITY_OUTPUT = EVAL_OUTPUT / "Qualitätsevaluation"
+LOADTEST_OUTPUT = EVAL_OUTPUT / "Loadtest"
+KPI_OUTPUT = EVAL_OUTPUT / "KPIs"
 
 # Module names for python -m invocation
 QUALITY_MODULE = "evaluation.evaluate_rag"
@@ -31,9 +34,10 @@ LATENCY_MODULE = "evaluation.request_looper"
 KPI_MODULE = "evaluation.calculate_kpis"
 
 def ensure_output_dir():
-    """Create the shared output directory for evaluation artifacts."""
-    EVAL_OUTPUT.mkdir(parents=True, exist_ok=True)
-    print(f"Output directory: {EVAL_OUTPUT}")
+    """Create the split output directories for evaluation artifacts."""
+    for directory in (QUALITY_OUTPUT, LOADTEST_OUTPUT, KPI_OUTPUT):
+        directory.mkdir(parents=True, exist_ok=True)
+    print(f"Output directories: {EVAL_OUTPUT}/{{Qualitätsevaluation,Loadtest,KPIs}}")
 
 def run_module(module: str, args: list[str] | None = None) -> bool:
     """Run an evaluation module in a child Python process and report success."""
@@ -62,18 +66,19 @@ async def run_quality_only():
     ensure_output_dir()
     
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    output_file = EVAL_OUTPUT / f"results_{timestamp}.csv"
-    
+    output_file = QUALITY_OUTPUT / f"results_{timestamp}.csv"
+
     success = run_module(QUALITY_MODULE, ["--output", str(output_file)])
-    
+
     if success:
         print(f"Results saved to: {output_file.name}")
-        
-        # KPIs berechnen
+
+        # KPIs berechnen — Scopes: Qualität aus Qualitätsevaluation, Rest aus Loadtest
         print("\nCalculating KPIs...")
-        kpis_output = EVAL_OUTPUT / f"kpis_{timestamp}.json"
-        run_module(KPI_MODULE, ["--dir", str(EVAL_OUTPUT), "--output", str(kpis_output)])
-    
+        kpis_output = KPI_OUTPUT / f"kpis_{timestamp}.json"
+        run_module(KPI_MODULE, ["--dir", str(QUALITY_OUTPUT), str(LOADTEST_OUTPUT),
+                                "--output", str(kpis_output)])
+
     return success
 
 async def run_latency_only():
@@ -86,18 +91,19 @@ async def run_latency_only():
     success = run_module(LATENCY_MODULE)
     
     if success:
-        load_files = sorted(EVAL_OUTPUT.glob('load-test-*.csv'))
-        res_files = sorted(EVAL_OUTPUT.glob('*-resources.csv'))
+        load_files = sorted(LOADTEST_OUTPUT.glob('load-test-*.csv'))
+        res_files = sorted(LOADTEST_OUTPUT.glob('*-resources.csv'))
         if load_files:
             print(f"Load test: {load_files[-1].name}")
         if res_files:
             print(f"Resources: {res_files[-1].name}")
-        
-        # KPIs berechnen
+
+        # KPIs berechnen — Scopes: Qualität aus Qualitätsevaluation, Rest aus Loadtest
         print("\nCalculating KPIs...")
         kpis_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        kpis_output = EVAL_OUTPUT / f"kpis_{kpis_timestamp}.json"
-        run_module(KPI_MODULE, ["--dir", str(EVAL_OUTPUT), "--output", str(kpis_output)])
+        kpis_output = KPI_OUTPUT / f"kpis_{kpis_timestamp}.json"
+        run_module(KPI_MODULE, ["--dir", str(QUALITY_OUTPUT), str(LOADTEST_OUTPUT),
+                                "--output", str(kpis_output)])
     
     return success
 
@@ -110,19 +116,20 @@ async def run_kpis_only():
         print(f"Directory not found: {EVAL_OUTPUT}")
         return False
     
-    results_files = list(EVAL_OUTPUT.glob('results_*.csv'))
-    load_files = list(EVAL_OUTPUT.glob('load-test-*.csv'))
-    
+    results_files = list(QUALITY_OUTPUT.glob('results_*.csv'))
+    load_files = list(LOADTEST_OUTPUT.glob('load-test-*.csv'))
+
     print(f"Found: {len(results_files)} results file(s), {len(load_files)} load file(s)")
-    
+
     if not results_files and not load_files:
         print("No evaluation files found!")
         return False
-    
+
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_file = EVAL_OUTPUT / f"kpis_{timestamp}.json"
-    
-    success = run_module(KPI_MODULE, ["--dir", str(EVAL_OUTPUT), "--output", str(output_file)])
+    output_file = KPI_OUTPUT / f"kpis_{timestamp}.json"
+
+    success = run_module(KPI_MODULE, ["--dir", str(QUALITY_OUTPUT), str(LOADTEST_OUTPUT),
+                                      "--output", str(output_file)])
     
     if success:
         print(f"KPIs saved to: {output_file.name}")
@@ -141,27 +148,26 @@ async def run_full_pipeline():
     print("\n[1/3] Quality evaluation...")
     success1 = run_module(
         QUALITY_MODULE,
-        ["--output", str(EVAL_OUTPUT / f"results_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv")]
+        ["--output", str(QUALITY_OUTPUT / f"results_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv")]
     )
     all_success = all_success and success1
-    
+
     print("\n[2/3] Latency & resources...")
     success2 = run_module(LATENCY_MODULE)
     all_success = all_success and success2
-    
+
     print("\n[3/3] Calculating KPIs...")
-    kpis_output = EVAL_OUTPUT / f"kpis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    success3 = run_module(KPI_MODULE, ["--dir", str(EVAL_OUTPUT), "--output", str(kpis_output)])
+    kpis_output = KPI_OUTPUT / f"kpis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    success3 = run_module(KPI_MODULE, ["--dir", str(QUALITY_OUTPUT), str(LOADTEST_OUTPUT),
+                                       "--output", str(kpis_output)])
     all_success = all_success and success3
-    
+
     print("\n" + "=" * 60)
     if all_success:
         print("PIPELINE COMPLETED")
         print(f"\nGenerated files:")
-        for f in sorted(EVAL_OUTPUT.glob('*.csv')):
-            print(f"   - {f.name}")
-        for f in sorted(EVAL_OUTPUT.glob('*.json')):
-            print(f"   - {f.name}")
+        for f in sorted(QUALITY_OUTPUT.glob('*')) + sorted(LOADTEST_OUTPUT.glob('*')) + sorted(KPI_OUTPUT.glob('*')):
+            print(f"   - {f.relative_to(EVAL_OUTPUT)}")
     else:
         print("PIPELINE COMPLETED WITH ERRORS")
     

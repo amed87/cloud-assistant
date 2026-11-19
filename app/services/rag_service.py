@@ -79,12 +79,16 @@ class RagService:
         logger.info("Retrieving top document for question: %s", question)
         answer = self.content_config.standard_fallback
 
-        documents = await self._retrieve_candidates(
+        documents, query_embedding = await self._retrieve_candidates(
             question,
             limit=5,
         )
 
-        reranked, feature_scores = await self.reranker.rerank(documents, question)
+        reranked, feature_scores = await self.reranker.rerank(
+            documents,
+            question,
+            query_embedding=query_embedding,
+        )
         decision = self.answerability_gate.evaluate_quick(
             question=question,
             documents=reranked,
@@ -121,7 +125,7 @@ class RagService:
             question,
         )
 
-        documents = await self._retrieve_candidates(
+        documents, _query_embedding = await self._retrieve_candidates(
             question,
             limit=self.top_k,
         )
@@ -148,14 +152,20 @@ class RagService:
         )
 
     async def _retrieve_candidates(
-            self, 
-            question: str, 
+            self,
+            question: str,
             limit: int,
-        ) -> list[SearchResult]:
-        """Embed the query and search the vector store for its nearest candidates."""
+        ) -> tuple[list[SearchResult], list[float]]:
+        """Embed the query and search the vector store for its nearest candidates.
+
+        Returns the candidates together with the query embedding so reranker
+        features (e.g. centroid classification) can reuse it without a second
+        embedding call.
+        """
         embedding = await self.embedding_provider.embed(question)
 
-        return await self.vector_store.search(
+        documents = await self.vector_store.search(
             embedding=embedding,
             limit=limit,
         )
+        return documents, embedding

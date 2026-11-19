@@ -10,7 +10,7 @@ from app.vectorstores.models import VectorDocument
 @pytest.mark.asyncio
 async def test_vectorstore_adds_and_finds_document(tmp_path, monkeypatch) -> None:
     settings = get_settings()
-    monkeypatch.setattr(settings, "CHROMA_PATH", str(tmp_path / "chroma"))
+    monkeypatch.setattr(settings, "DB_PATH", str(tmp_path / "chroma"))
     monkeypatch.setattr(settings, "CHROMA_COLLECTION", "vectorstore-test")
 
     store = ChromaVectorStore()

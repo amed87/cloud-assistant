@@ -17,7 +17,14 @@ TOLERANCE = 1e-6
 
 def calibrate(cases: list[CaseCache], matrices: FeatureMatrices,
               prompt_names: list[str], n_samples: int = 15) -> dict:
-    """Compare matrix scores against live reranked scores on a sample."""
+    """Compare matrix scores against live reranked scores on a sample.
+
+    With a persisted cache the live scores were produced with the weights
+    snapshot stored at cache build time — so calibration reconstructs with
+    exactly those weights, independent of the current .env. Without a
+    snapshot (fresh retrieval) the current settings weights apply, which is
+    the classic self-consistency check.
+    """
     settings = get_settings()
     if len(settings.DECISION_MODEL_WEIGHTS) != len(prompt_names):
         raise ValueError(
@@ -25,19 +32,46 @@ def calibrate(cases: list[CaseCache], matrices: FeatureMatrices,
             "decision_model_prompts entry."
         )
 
-    norm_key = int(settings.KEYWORD_MATCH_NORMALIZATION)
+    snapshots = [case.weights_snapshot for case in cases]
+    snapshot = snapshots[0] if snapshots and all(s is not None for s in snapshots) else None
+    if snapshot is not None and len(snapshot["dm_weights"]) != len(prompt_names):
+        raise ValueError(
+            "weights snapshot in the cache does not match the current "
+            "decision_model_prompts set; rebuild the cache."
+        )
+
+    if snapshot is not None:
+        weights = {
+            "intent_weight": snapshot["intent_weight"],
+            "intent_bonus": snapshot["intent_bonus"],
+            "intent_penalty": snapshot["intent_penalty"],
+            "kw_weight": snapshot["kw_weight"],
+            "dm_weights": list(snapshot["dm_weights"]),
+            "normalization": int(snapshot["normalization"]),
+        }
+    else:
+        weights = {
+            "intent_weight": settings.INTENT_WEIGHT,
+            "intent_bonus": settings.INTENT_MATCH_BONUS,
+            "intent_penalty": settings.INTENT_MISMATCH_PENALTY,
+            "kw_weight": settings.KEYWORD_WEIGHT,
+            "dm_weights": list(settings.DECISION_MODEL_WEIGHTS),
+            "normalization": int(settings.KEYWORD_MATCH_NORMALIZATION),
+        }
+
+    norm_key = int(weights["normalization"])
     if norm_key not in matrices.keyword:
         raise ValueError(
-            f"KEYWORD_MATCH_NORMALIZATION={norm_key} was not cached; add it "
+            f"normalization={norm_key} was not cached; add it "
             "to NORMALIZATION_CANDIDATES"
         )
 
     kwargs = dict(
-        intent_weight=settings.INTENT_WEIGHT,
-        bonus=settings.INTENT_MATCH_BONUS,
-        penalty=settings.INTENT_MISMATCH_PENALTY,
-        kw_weight=settings.KEYWORD_WEIGHT,
-        dm_weights=list(settings.DECISION_MODEL_WEIGHTS),
+        intent_weight=weights["intent_weight"],
+        bonus=weights["intent_bonus"],
+        penalty=weights["intent_penalty"],
+        kw_weight=weights["kw_weight"],
+        dm_weights=list(weights["dm_weights"]),
         normalization=norm_key,
     )
 

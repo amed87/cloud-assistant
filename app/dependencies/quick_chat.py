@@ -1,10 +1,6 @@
 from app.config.settings import get_settings
 from app.config.content_settings import content_config
 
-from app.embeddings.ollama_provider import (
-    OllamaEmbeddingProvider,
-)
-
 from app.services.quick_chat_service import (
     QuickChatService,
 )
@@ -33,10 +29,6 @@ from app.quality.ranking.keyword_feature import (
     KeywordFeature,
 )
 
-from app.quality.providers.decision.ollama_provider import (
-    OllamaDecisionProvider,
-)
-
 from app.quality.ranking.decision_model_feature import (
     DecisionModelFeature,
 )
@@ -45,9 +37,13 @@ from app.quality.ranking.dm_single_feature import (
     DMSingleFeature,
 )
 
+from app.dependencies.centroids import get_centroid_features
+from app.dependencies.providers import (
+    embedding_provider,
+    decision_provider,
+)
+
 settings = get_settings()
-embedding_provider = OllamaEmbeddingProvider()
-decision_provider = OllamaDecisionProvider(settings.DECISION_MODEL)
 vector_store = ChromaVectorStore()
 dm_feature = DecisionModelFeature(
     weight=0.0,
@@ -78,6 +74,7 @@ features = [
         )
         for index, name in enumerate(decision_model_names)
     ),
+    *get_centroid_features(),
 ]
 reranker = Reranker(features, dm_feature=dm_feature)
 answerability_gate = AnswerabilityGate(settings.RAG_MIN_SCORE, settings.RAG_MIN_SCORE_GAP)

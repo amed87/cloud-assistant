@@ -1,8 +1,5 @@
 from app.config.settings import get_settings
 from app.config.content_settings import content_config
-from app.embeddings.ollama_provider import (
-    OllamaEmbeddingProvider,
-)
 
 from app.providers.ollama_provider import OllamaProvider
 
@@ -54,6 +51,9 @@ from app.quality.ranking.keyword_feature import (
     KeywordFeature,
 )
 
+from app.dependencies.centroids import get_centroid_features
+from app.dependencies.providers import embedding_provider
+
 
 settings = get_settings()
 provider = OllamaProvider()
@@ -63,11 +63,10 @@ prompt_pipeline = PromptPipeline([
     SystemPromptStep(prompt_provider=prompt_provider),
     ConversationStep(),
 ])
-embedding_provider = OllamaEmbeddingProvider()
 vector_store = ChromaVectorStore()
 features = [
     IntentFeature(
-        weight=settings.INTENT_WEIGHT, 
+        weight=settings.INTENT_WEIGHT,
         bonus=settings.INTENT_MATCH_BONUS,
         penalty=settings.INTENT_MISMATCH_PENALTY,
         fallback=content_config.fragetyp_fallback,
@@ -75,7 +74,8 @@ features = [
     KeywordFeature(
         weight=settings.KEYWORD_WEIGHT,
         normalization=settings.KEYWORD_MATCH_NORMALIZATION,
-    )
+    ),
+    *get_centroid_features(),
     ]
 reranker = Reranker(features)
 answerability_gate = AnswerabilityGate(settings.RAG_MIN_SCORE, settings.RAG_MIN_SCORE_GAP)

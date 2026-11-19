@@ -11,23 +11,33 @@ class Reranker:
         features: list[RankingFeature],
         dm_feature: DecisionModelFeature | None = None
     ) -> None:
-        self._features = features
+        # Ein Feature ist ausschließlich über sein Gewicht an/aus: weight == 0
+        # trägt nichts zum Score bei, wird aber nicht mehr aufgerufen (kein
+        # DM-Call, kein Priming). So bleibt die Aktivierung pro Feature eine
+        # reine Konfigurationsfrage.
+        self._features = [feature for feature in features if feature.weight != 0]
         self._dm_feature = dm_feature
 
     async def rerank(
         self,
         candidates: list[SearchResult],
         query: str,
+        query_embedding: list[float] | None = None,
     ) -> tuple[list[SearchResult], dict[str, dict[str, float]]]:
         """Score and sort candidates, returning per-feature scores by candidate ID."""
         boosted_results = []
         candidate_feature_scores: dict[str, dict[str, float]] = {}
 
+        # Resolve asynchronous dependencies before the synchronous scoring loop.
+        # DMSingleFeatures share one parent call; facet features share one
+        # classification pass — both are idempotent per query.
         for feature in self._features:
-            if isinstance(feature, DMSingleFeature) and self._dm_feature is not None:
-                # Resolve the async Ollama call before entering the synchronous scoring loop.
-                await self._dm_feature.prime_cache(query, candidates)
-                break
+            await feature.prime(query, query_embedding)
+        if (
+            self._dm_feature is not None
+            and any(isinstance(feature, DMSingleFeature) for feature in self._features)
+        ):
+            await self._dm_feature.prime_cache(query, candidates)
 
         for candidate in candidates:
             final_score = candidate.score
@@ -38,9 +48,8 @@ class Reranker:
                 weighted_score = feature.weight * raw_score
                 final_score += weighted_score
                 feature_name = (
-                    feature.name
-                    if isinstance(feature, DMSingleFeature)
-                    else feature.__class__.__name__
+                    getattr(feature, "name", None)
+                    or feature.__class__.__name__
                 )
                 feature_breakdown[feature_name] = raw_score
 

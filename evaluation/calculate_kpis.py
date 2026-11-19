@@ -908,17 +908,31 @@ def calculate_knowledge_base_kpis(
 # COMBINED REPORT
 # ============================================
 
-def generate_kpi_report(eval_dir: Path, run_id: str | None = None) -> dict:
-    """Generate comprehensive KPI report from evaluation directory."""
-    
-    load_files = sorted(eval_dir.glob('load-test-quick-*.csv'))
-    results_files = sorted(eval_dir.glob('results_*.csv'))
-    resources_files = sorted(eval_dir.glob('*-resources.csv'))
-    health_files = sorted(eval_dir.glob("health_check_*.json")
-)
+def generate_kpi_report(eval_dirs: Path | list[Path], run_id: str | None = None) -> dict:
+    """Generate comprehensive KPI report from evaluation directories.
+
+    ``eval_dirs`` accepts one or more directories; each file group (load
+    test, results, resources, health check) uses the newest match across
+    all of them, so quality and load scopes can live in separate folders.
+    """
+    if isinstance(eval_dirs, Path):
+        eval_dirs = [eval_dirs]
+
+    load_files, results_files, resources_files, health_files = [], [], [], []
+    for eval_dir in eval_dirs:
+        load_files.extend(eval_dir.glob('load-test-quick-*.csv'))
+        results_files.extend(eval_dir.glob('results_*.csv'))
+        resources_files.extend(eval_dir.glob('*-resources.csv'))
+        health_files.extend(eval_dir.glob("health_check_*.json"))
+
+    load_files.sort()
+    results_files.sort()
+    resources_files.sort()
+    health_files.sort()
     
     if not load_files and not results_files:
-        raise ValueError(f"No evaluation files found in {eval_dir} (need at least load-test-*.csv or results_*.csv)")
+        raise ValueError(f"No evaluation files found in {[str(d) for d in eval_dirs]} "
+                         "(need at least load-test-*.csv or results_*.csv)")
     
     latest_load = load_files[-1]
     latest_results = results_files[-1]
@@ -959,6 +973,7 @@ def generate_kpi_report(eval_dir: Path, run_id: str | None = None) -> dict:
 
 def save_kpis(kpis: dict, output_path: Path) -> None:
     """Save KPIs to JSON file."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(kpis, f, indent=2, ensure_ascii=False)
 
@@ -1327,10 +1342,14 @@ if __name__ == '__main__':
     import argparse
     
     parser = argparse.ArgumentParser(description='Generate KPIs from RAG evaluation files')
-    parser.add_argument('--dir', '-d', type=Path, default=Path('.'),
-                       help='Directory containing evaluation files')
-    parser.add_argument('--output', '-o', type=Path, default=Path('kpis.json'),
-                       help='Output JSON file')
+    parser.add_argument('--dir', '-d', type=Path, nargs='*',
+                        default=[Path(__file__).resolve().parents[1].parent / 'eval' / 'output' / dir_name
+                                 for dir_name in ('Qualitätsevaluation', 'Loadtest')],
+                        help='Directories containing evaluation files (multiple allowed; '
+                             'default: eval/output/Qualitätsevaluation and eval/output/Loadtest)')
+    parser.add_argument('--output', '-o', type=Path,
+                        default=Path(__file__).resolve().parents[1].parent / 'eval' / 'output' / 'KPIs' / 'kpis.json',
+                        help='Output JSON file')
     parser.add_argument('--quiet', '-q', action='store_true',
                        help='Suppress console output')
     args = parser.parse_args()

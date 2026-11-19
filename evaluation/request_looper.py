@@ -24,7 +24,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 EVAL_DATA = PROJECT_ROOT.parent / "eval" / "data"
-EVAL_OUTPUT = PROJECT_ROOT.parent / "eval" / "output"
+EVAL_OUTPUT = PROJECT_ROOT.parent / "eval" / "output" / "Loadtest"
 WORKLOAD_FILE = EVAL_DATA / "synthetic_load_workload.csv"
 VENV = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
 base_url = "http://127.0.0.1:8000"

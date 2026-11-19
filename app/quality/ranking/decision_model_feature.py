@@ -23,7 +23,10 @@ class DecisionModelFeature(RankingFeature):
         """
         Populate the cache asynchronously for the complete candidate list.
         The async orchestrator must call this before the synchronous scoring loop.
+        Idempotent per query — repeated primes for the same query are no-ops.
         """
+        if self._last_query == query and self._cached_scores is not None:
+            return
         self._last_query = query
         
         # Extract the candidate text used as a decision choice.

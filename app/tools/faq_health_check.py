@@ -120,7 +120,8 @@ class FAQHealthCheckService:
                     result=report,
                     output_dir=Path(__file__).resolve().parents[3]
                     / "eval"
-                    / "output",
+                    / "output"
+                    / "Qualitätsevaluation",
                 )
 
 
