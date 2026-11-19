@@ -10,3 +10,4 @@ pydantic-settings==2.14.2
 PyYAML==6.0.3
 python-dotenv==1.2.2
 uvicorn[standard]==0.51.0
+optuna==5.0.0

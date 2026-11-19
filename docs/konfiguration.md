@@ -69,5 +69,5 @@ Regex-Filter werden in ihrer YAML-Reihenfolge geprüft. Nach Änderungen Beispie
 
 - Änderungen an `.env` erfordern einen Neustart des App-Prozesses.
 - Änderungen an `content_config.yaml` erfordern ebenfalls einen Neustart; Konfigurationen werden gecacht.
-- Nach Änderungen an `FAQ_INPUT_FILE` den Health Check auf genau diese Datei ausführen, bevor der persistente Index aktualisiert wird.
+- Nach Änderungen an `FAQ_INPUT_FILE` den FAQ Health Check auf genau diese Datei ausführen, bevor der persistente Index aktualisiert wird.
 - Einstellungen und Prompts anhand der [Evaluation](evaluation.md) vergleichen, statt nur einzelne Antworten zu beurteilen.

@@ -26,6 +26,7 @@ from app.quality.ranking.reranker import Reranker
 from app.quality.ranking.intent_feature import IntentFeature
 from app.quality.ranking.keyword_feature import KeywordFeature
 from app.quality.ranking.decision_model_feature import DecisionModelFeature
+from app.quality.ranking.dm_single_feature import DMSingleFeature
 
 GOLDEN_CSV = Path(__file__).resolve().parents[2] / "eval" / "data" / "golden_dataset.csv"
 OUTPUT_PATH = Path(__file__).resolve().parents[2] / "eval" / "output" / f"results_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
@@ -191,7 +192,13 @@ def classify_overall(case_result: CaseResult, expected_entry: str) -> str | None
     return None
 
 def write_results_to_csv(results: list[CaseResult], path: Path) -> None:
-    """Writes all results to CSV file with extended columns for multi-level evaluation."""
+    """Writes all results to CSV file with extended columns for multi-level evaluation.
+
+    Float columns are written at full (repr) precision: the decision model
+    jitters scores by ~±0.003 between runs, and threshold-adjacent cases flip
+    within that range - rounding to 3 decimals would hide exactly the
+    differences needed to diagnose run-to-run gate decisions.
+    """
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow([
@@ -205,18 +212,19 @@ def write_results_to_csv(results: list[CaseResult], path: Path) -> None:
             "gate_reranker_confidence", "gate_reranker_accepted", "gate_reranker_reason"
         ])
         
+        def num(x):
+            """Full-precision float, empty string for None."""
+            return "" if x is None else float(x)
+
         for r in results:
-            margin_str = f"{r.margin:.3f}" if r.margin is not None else ""
-            chroma_margin_str = f"{r.chroma_margin:.3f}" if r.chroma_margin is not None else ""
-            reranker_margin_str = f"{r.reranker_margin:.3f}" if r.reranker_margin is not None else ""
             answer_str = (r.answer or "").replace("\n", " ").replace(",", ";")[:200]
-            
+
             writer.writerow([
                 r.question,
                 r.category,
-                f"{r.score:.3f}",
-                f"{r.second_score:.3f}" if r.second_score is not None else "",
-                margin_str,
+                num(r.score),
+                num(r.second_score),
+                num(r.margin),
                 r.entry_id or "",
                 answer_str,
                 r.expected_entry,
@@ -228,23 +236,23 @@ def write_results_to_csv(results: list[CaseResult], path: Path) -> None:
                 r.gate_reranker_verdict or "",
                 r.overall_verdict or "",
 
-                f"{r.chroma_top_score:.3f}",
+                num(r.chroma_top_score),
                 r.chroma_entry_id or "",
-                chroma_margin_str,
+                num(r.chroma_margin),
                 r.retrieval_hit_top3,
                 r.retrieval_hit_top5,
                 r.retrieval_hit_top10,
 
-                f"{r.reranker_top_score:.3f}",
+                num(r.reranker_top_score),
                 r.reranker_entry_id or "",
-                reranker_margin_str,
+                num(r.reranker_margin),
 
-                f"{r.gate_chroma_confidence:.3f}",
+                num(r.gate_chroma_confidence),
                 r.gate_chroma_accepted,
                 r.gate_chroma_reason,
                 r.gate_chroma_entry_id or "",
 
-                f"{r.gate_reranker_confidence:.3f}",
+                num(r.gate_reranker_confidence),
                 r.gate_reranker_accepted,
                 r.gate_reranker_reason,
             ])
@@ -268,24 +276,37 @@ async def main() -> None:
     embedding_provider = OllamaEmbeddingProvider()
     vector_store = ChromaVectorStore()
     decision_provider = OllamaDecisionProvider(settings.DECISION_MODEL)
-    reranker_features = [        
+    dm_feature = DecisionModelFeature(
+        weight=0.0,
+        decision_provider=decision_provider,
+    )
+    prompt_names = list(content_config.decision_model_prompts)
+    if len(settings.DECISION_MODEL_WEIGHTS) != len(prompt_names):
+        raise ValueError(
+            "DECISION_MODEL_WEIGHTS must contain one weight for each "
+            "decision_model_prompts entry."
+        )
+    reranker_features = [
         IntentFeature(
-            weight=settings.INTENT_WEIGHT, 
+            weight=settings.INTENT_WEIGHT,
             bonus=settings.INTENT_MATCH_BONUS,
             penalty=settings.INTENT_MISMATCH_PENALTY,
             fallback=content_config.fragetyp_fallback,
-            ),
+        ),
         KeywordFeature(
             weight=settings.KEYWORD_WEIGHT,
             normalization=settings.KEYWORD_MATCH_NORMALIZATION,
         ),
-         DecisionModelFeature(
-            weight=settings.DECISION_MODEL_WEIGHT,
-            decision_provider=decision_provider,
+        *(
+            DMSingleFeature(
+                name=name,
+                weight=weight,
+                parent_feature=dm_feature,
+            )
+            for name, weight in zip(prompt_names, settings.DECISION_MODEL_WEIGHTS)
         ),
-    ] 
-    reranker = Reranker(features=reranker_features)
-    
+    ]
+    reranker = Reranker(features=reranker_features, dm_feature=dm_feature)
     
     # Initialize AnswerabilityGate with current settings
     answerability_gate = AnswerabilityGate(

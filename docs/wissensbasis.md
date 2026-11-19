@@ -52,7 +52,7 @@ Der Importer vergleicht die Einträge einer Quelle mit bereits gespeicherten IDs
 
 Die Admin-API hat derzeit keine Authentifizierung. Führe diese Aufrufe nur lokal oder in einer geschützten Umgebung aus. Für einen freigegebenen Update-Prozess Datenbank-Backup und Rückfallplan vorsehen.
 
-## Health-Check-Bericht
+## FAQ-Health-Check-Bericht
 
 Der Health Check nutzt einen temporären Chroma-Store, importiert dort die Datei und räumt den temporären Store nach dem Lauf auf. Der Bericht wird zusätzlich unter `..\eval\output` abgelegt. Prüfe den JSON-Bericht und die API-Antwort gemeinsam; Fehlermeldungen aus Modell- oder Dateizugriffen stehen in den Serverlogs.
 

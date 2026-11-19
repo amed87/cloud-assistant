@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     ollama_model: str = "gemma:2b"
     ollama_num_threads: str = "4"
     OLLAMA_NUM_CTX: str = "2048"
+    OLLAMA_KEEP_ALIVE: int = -1
 
     log_level: str = "INFO"
 

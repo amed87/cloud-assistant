@@ -59,10 +59,10 @@ python -m evaluation.evaluate --mode full
 
 Der Modus führt Quality, Latency/Resources und KPI-Berechnung nacheinander aus. Er benötigt Ollama, einen passenden Index und funktionierende Windows-Prozessstarts. Bei Fehlersuche die Modi einzeln laufen lassen.
 
-## Hyperparameter-Tuning
+## Parameter-Tuning
 
 ```powershell
-python -m evaluation.hyperparameter_tuning
+python -m evaluation.parameter_tuning
 ```
 
 Der Sweep braucht einen erreichbaren Ollama-Dienst und einen passenden Chroma-Index. Er berechnet Decision-Feature-Scores vorab und variiert Feature-Gewichte sowie Gate-Schwellen. Die Zahl der Kombinationen wächst mit jeder Prompt-Aufgabe exponentiell in der Anzahl der Gewichtskandidaten; auch die derzeitige Konfiguration kann daher sehr rechen- und zeitintensiv sein. Bei Änderungen an Kandidatenbereichen erst Kombinationenzahl prüfen und ggf. auf einem kleineren Bereich beginnen.
